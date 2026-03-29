@@ -431,8 +431,8 @@ function GameContent() {
 
   useEffect(() => {
     // --- НАСТРОЙКИ ФОНОВОЙ МУЗЫКИ ---
-    const MUSIC_URL = '/audio/bg_music.mp3'; // Путь к файлу
-    const MUSIC_VOLUME = 0.15; // Громкость (от 0.0 до 1.0). 0.15 = 15% громкости.
+    const MUSIC_URL = 'audio/bg_music.mp3'; // Путь к файлу
+    const MUSIC_VOLUME = 0.1; // Громкость (от 0.0 до 1.0). 0.15 = 15% громкости.
     // --------------------------------
 
     if (isSoundEnabled) {
@@ -475,14 +475,14 @@ function GameContent() {
   useEffect(() => {
     if (gameState === 'STORY') {
       // Play briefing audio
-      playAudioFile('/audio/briefing.mp3');
+      playAudioFile('audio/briefing.mp3');
     } else if (gameState === 'PLAYING' && scenario.type === ScenarioType.VOICE && scenario.audioUrl) {
       // Play scenario voice audio
       playAudioFile(scenario.audioUrl);
     } else if (gameState !== 'PLAYING' && gameState !== 'STORY') {
       stopAudio();
     }
-    
+
     return () => stopAudio();
   }, [gameState, currentLevel, scenario.type, scenario.audioUrl, playAudioFile, stopAudio]);
 
