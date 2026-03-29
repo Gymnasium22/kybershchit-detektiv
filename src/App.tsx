@@ -36,6 +36,7 @@ import {
   VolumeX,
   QrCode,
   Terminal,
+  Home,
   ChevronRight
 } from 'lucide-react';
 import { SCENARIOS, ScenarioType } from './types';
@@ -83,6 +84,7 @@ function GameContent() {
 
   const [isTutorialActive, setIsTutorialActive] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
+  const [userInteracted, setUserInteracted] = useState(false); // Отслеживаем первое взаимодействие
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const bgMusicRef = React.useRef<HTMLAudioElement | null>(null);
 
@@ -254,27 +256,34 @@ function GameContent() {
       const audio = new Audio(url);
       audioRef.current = audio;
       setIsVoicePlaying(true);
-      
+
       audio.onended = () => {
         setIsVoicePlaying(false);
         audioRef.current = null;
         if (onEnd) onEnd();
       };
-      
+
       audio.onerror = () => {
+        console.error(`Audio error for ${url}`);
         setIsVoicePlaying(false);
         audioRef.current = null;
       };
 
+      // Для мобильных: пытаемся воспроизвести, но если не получается - 
+      // просто помечаем что аудио готово к воспроизведению
       await audio.play();
     } catch (e) {
-      console.error("Audio play failed:", e);
+      // На мобильных iOS аудио может не запуститься без жеста пользователя
+      // В этом случае просто игнорируем ошибку - пользователь сможет запустить вручную
+      console.warn("Audio play failed (may need user interaction):", e);
       setIsVoicePlaying(false);
+      audioRef.current = null;
     }
   }, [stopAudio]);
 
   const handleStart = useCallback(() => {
     playSound('click');
+    setUserInteracted(true); // Разблокируем аудио для мобильных
     setGameState('STORY');
   }, [playSound]);
 
@@ -429,13 +438,22 @@ function GameContent() {
     }, 1500);
   }, [currentLevel, playSound, score, highScore, updateStats]);
 
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+  const handleExitToHome = () => {
+    playSound('click');
+    setGameState('START');
+    setShowExitConfirm(false);
+  };
+
   useEffect(() => {
     // --- НАСТРОЙКИ ФОНОВОЙ МУЗЫКИ ---
     const MUSIC_URL = 'audio/bg_music.mp3'; // Путь к файлу
-    const MUSIC_VOLUME = 0.1; // Громкость (от 0.0 до 1.0). 0.15 = 15% громкости.
+    const MUSIC_VOLUME = 0.02; // Громкость (от 0.0 до 1.0). 0.15 = 15% громкости.
     // --------------------------------
 
-    if (isSoundEnabled) {
+    // На мобильных аудио не запустится без взаимодействия пользователя
+    if (isSoundEnabled && userInteracted) {
       const checkAndPlay = async () => {
         try {
           // Check if file exists before playing to avoid console errors
@@ -448,43 +466,49 @@ function GameContent() {
             bgMusicRef.current.volume = MUSIC_VOLUME;
           }
 
-          bgMusicRef.current.play().catch(() => {
-            const enableAudio = () => {
-              bgMusicRef.current?.play();
-              window.removeEventListener('click', enableAudio);
-              window.removeEventListener('touchstart', enableAudio);
-            };
-            window.addEventListener('click', enableAudio);
-            window.addEventListener('touchstart', enableAudio);
-          });
+          // Пытаемся запустить сразу
+          await bgMusicRef.current.play();
         } catch (e) {
-          // Ignore fetch errors
+          // Если не получилось - вешаем обработчики на все клики
+          const enableAudio = () => {
+            bgMusicRef.current?.play().catch(() => {});
+            window.removeEventListener('click', enableAudio);
+            window.removeEventListener('touchstart', enableAudio);
+            window.removeEventListener('keydown', enableAudio);
+          };
+          window.addEventListener('click', enableAudio);
+          window.addEventListener('touchstart', enableAudio);
+          window.addEventListener('keydown', enableAudio);
         }
       };
 
       checkAndPlay();
-    } else {
+    } else if (!isSoundEnabled) {
       bgMusicRef.current?.pause();
     }
 
     return () => {
       bgMusicRef.current?.pause();
     };
-  }, [isSoundEnabled]);
+  }, [isSoundEnabled, userInteracted]);
 
   useEffect(() => {
     if (gameState === 'STORY') {
-      // Play briefing audio
-      playAudioFile('audio/briefing.mp3');
+      // Play briefing audio только после взаимодействия пользователя
+      if (userInteracted) {
+        playAudioFile('audio/briefing.mp3');
+      }
     } else if (gameState === 'PLAYING' && scenario.type === ScenarioType.VOICE && scenario.audioUrl) {
-      // Play scenario voice audio
-      playAudioFile(scenario.audioUrl);
+      // Play scenario voice audio только после взаимодействия пользователя
+      if (userInteracted) {
+        playAudioFile(scenario.audioUrl);
+      }
     } else if (gameState !== 'PLAYING' && gameState !== 'STORY') {
       stopAudio();
     }
 
     return () => stopAudio();
-  }, [gameState, currentLevel, scenario.type, scenario.audioUrl, playAudioFile, stopAudio]);
+  }, [gameState, currentLevel, scenario.type, scenario.audioUrl, playAudioFile, stopAudio, userInteracted]);
 
   useEffect(() => {
     if (gameState !== 'PLAYING' || isFrozen || isVoicePlaying) return;
@@ -531,8 +555,15 @@ function GameContent() {
               className="flex-1 flex flex-col items-center justify-center space-y-4 md:space-y-6 p-2 md:p-4 lg:p-6 overflow-hidden"
             >
               <div className="relative inline-block shrink-0 scale-50 md:scale-75 lg:scale-90">
-                <button 
-                  onClick={() => setIsSoundEnabled(!isSoundEnabled)}
+                <button
+                  onClick={() => {
+                    setUserInteracted(true); // Разблокируем аудио для мобильных
+                    setIsSoundEnabled(!isSoundEnabled);
+                    // Пытаемся сразу запустить музыку если включаем звук
+                    if (!isSoundEnabled && bgMusicRef.current) {
+                      bgMusicRef.current.play().catch(() => {});
+                    }
+                  }}
                   className="absolute -top-12 -left-12 p-3 md:p-4 bg-zinc-900/80 hover:bg-zinc-800 rounded-full border border-white/10 text-zinc-400 transition-all z-20 shadow-xl backdrop-blur-md"
                   title={isSoundEnabled ? "Выключить звук" : "Включить звук"}
                 >
@@ -667,8 +698,14 @@ function GameContent() {
                         <div className="text-[7px] lg:text-[10px] text-zinc-500 uppercase font-black tracking-[0.2em] mb-0.5">Текущий статус</div>
                         <div className={`text-[10px] lg:text-lg xl:text-xl font-black uppercase tracking-tight leading-none ${rank.color} drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]`}>{rank.title}</div>
                       </div>
-                      <button 
-                        onClick={() => setIsSoundEnabled(!isSoundEnabled)}
+                      <button
+                        onClick={() => {
+                          setUserInteracted(true);
+                          setIsSoundEnabled(!isSoundEnabled);
+                          if (!isSoundEnabled && bgMusicRef.current) {
+                            bgMusicRef.current.play().catch(() => {});
+                          }
+                        }}
                         className="p-2.5 bg-zinc-800/80 hover:bg-zinc-700 rounded-full border border-white/10 text-zinc-400 transition-all shadow-lg backdrop-blur-md shrink-0"
                       >
                         {isSoundEnabled ? <Volume2 className="w-4 h-4 lg:w-5 lg:h-5" /> : <VolumeX className="w-4 h-4 lg:w-5 lg:h-5" />}
@@ -724,7 +761,20 @@ function GameContent() {
                   </div>
                   <div className="flex items-center gap-3">
                     <button 
-                      onClick={() => setIsSoundEnabled(!isSoundEnabled)}
+                      onClick={() => setShowExitConfirm(true)}
+                      className="p-2.5 bg-red-500 rounded-full text-white shadow-lg backdrop-blur-md hover:bg-red-600 transition-all"
+                      title="Выход в меню"
+                    >
+                      <Home className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setUserInteracted(true);
+                        setIsSoundEnabled(!isSoundEnabled);
+                        if (!isSoundEnabled && bgMusicRef.current) {
+                          bgMusicRef.current.play().catch(() => {});
+                        }
+                      }}
                       className="p-2.5 bg-zinc-800/80 rounded-full border border-white/10 text-zinc-400 shadow-lg backdrop-blur-md"
                     >
                       {isSoundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
@@ -767,7 +817,7 @@ function GameContent() {
                   </button>
                 </div>
 
-                <div className={`p-2 lg:p-3 rounded-xl border text-[8px] lg:text-[11px] font-mono leading-tight overflow-hidden ${scenario.isSpecialMission ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-zinc-900/50 border-zinc-800 text-zinc-500'}`}>
+                <div id="mobile-briefing" className={`p-2 lg:p-3 rounded-xl border text-[8px] lg:text-[11px] font-mono leading-tight overflow-hidden ${scenario.isSpecialMission ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-zinc-900/50 border-zinc-800 text-zinc-500'}`}>
                   <p>{scenario.briefing}</p>
                 </div>
               </div>
@@ -895,7 +945,14 @@ function GameContent() {
               {/* Desktop Right Column: HUD, Power-ups, Briefing */}
               <div className="hidden md:flex flex-col w-56 lg:w-72 xl:w-96 shrink-0 space-y-3 lg:space-y-6">
                 {/* HUD Card */}
-                <div className="bg-zinc-900/60 border border-zinc-800/50 p-4 lg:p-8 rounded-[2rem] lg:rounded-[2.5rem] backdrop-blur-xl space-y-3 lg:space-y-6 shadow-2xl">
+                <div className="bg-zinc-900/60 border border-zinc-800/50 p-4 lg:p-8 rounded-[2rem] lg:rounded-[2.5rem] backdrop-blur-xl space-y-3 lg:space-y-6 shadow-2xl relative group/hud">
+                  <button 
+                    onClick={() => setShowExitConfirm(true)}
+                    className="absolute -top-3 -right-3 p-3 bg-red-500 text-white rounded-2xl transition-all hover:scale-110 shadow-xl z-10"
+                    title="Выйти в главное меню"
+                  >
+                    <Home className="w-5 h-5 lg:w-6 lg:h-6" />
+                  </button>
                   <div className="flex justify-between items-center">
                     <div className="flex gap-1 lg:gap-2">
                       {[...Array(3)].map((_, i) => (
@@ -974,17 +1031,17 @@ function GameContent() {
             {/* Tutorial Overlay */}
             {isTutorialActive && (
               <div className={`absolute inset-0 z-[200] pointer-events-none flex p-4 transition-all duration-500 ${
-                tutorialStep === 0 ? 'justify-center items-center md:justify-start md:pl-[30%]' :
+                tutorialStep === 0 ? 'justify-center items-end pb-20 md:items-center md:pb-0 md:justify-start md:pl-[30%]' :
                 tutorialStep === 1 ? 'justify-center items-center md:justify-end md:pr-[5%]' :
                 tutorialStep === 2 ? 'justify-center items-center md:justify-start md:pl-[5%]' :
                 tutorialStep === 3 ? 'justify-center items-end md:justify-start md:pl-[5%] md:pb-[15%]' :
-                'justify-center items-start md:pt-[10%]'
+                'justify-center items-start pt-20 md:pt-[10%]'
               }`}>
                 <motion.div 
                   key={tutorialStep}
                   initial={{ opacity: 0, scale: 0.9, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  className="bg-zinc-900 border-2 border-purple-500 p-6 md:p-8 rounded-[2rem] max-w-sm w-full shadow-[0_0_50px_rgba(168,85,247,0.6)] space-y-4 relative pointer-events-auto z-[210]"
+                  className="bg-zinc-900 border-2 border-purple-500 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] max-w-[90%] md:max-w-sm w-full shadow-[0_0_50px_rgba(168,85,247,0.6)] space-y-3 md:space-y-4 relative pointer-events-auto z-[210]"
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-purple-500/20 rounded-xl">
@@ -1028,7 +1085,7 @@ function GameContent() {
                     border-radius: 2rem;
                   }
                   @media (max-width: 768px) {
-                    #${tutorialStep === 0 ? 'mobile-hud' : ['mobile-hud', 'smartphone-card', 'tools-card', 'briefing-card', 'choice-buttons'][tutorialStep]} {
+                    #${['mobile-hud', 'smartphone-card', 'mobile-hud', 'mobile-briefing', 'choice-buttons'][tutorialStep]} {
                       position: relative;
                       z-index: 150;
                       box-shadow: 0 0 0 9999px rgba(0,0,0,0.85), 0 0 60px rgba(168,85,247,0.8) !important;
@@ -1048,37 +1105,44 @@ function GameContent() {
               key="minigame"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-zinc-900/90 border-2 border-red-500/50 p-3 md:p-6 rounded-[1.5rem] md:rounded-[2.5rem] backdrop-blur-xl space-y-2 md:space-y-4 shadow-[0_0_60px_rgba(239,68,68,0.3)] w-full max-w-xl mx-auto max-h-full overflow-hidden flex flex-col"
+              className="bg-zinc-900/90 border-2 border-red-500/50 p-1.5 md:p-6 rounded-[1.2rem] md:rounded-[2.5rem] backdrop-blur-xl space-y-1 md:space-y-4 shadow-[0_0_60px_rgba(239,68,68,0.3)] w-[95%] max-w-xl mx-auto max-h-[90vh] overflow-y-auto flex flex-col relative"
             >
-              <div className="text-center space-y-1 md:space-y-2">
-                <div className="inline-flex p-2 md:p-3 bg-red-500/20 rounded-full">
-                  <ShieldAlert className="w-6 h-6 md:w-10 md:h-10 text-red-500" />
+              <button 
+                onClick={() => setShowExitConfirm(true)}
+                className="absolute top-2 right-2 md:top-4 md:right-4 p-2 bg-red-500 text-white rounded-xl shadow-lg z-20 hover:bg-red-600 transition-all"
+                title="Выйти в меню"
+              >
+                <Home className="w-4 h-4 md:w-6 md:h-6" />
+              </button>
+              <div className="text-center space-y-0.5 md:space-y-2">
+                <div className="inline-flex p-1 md:p-3 bg-red-500/20 rounded-full">
+                  <ShieldAlert className="w-4 h-4 md:w-10 md:h-10 text-red-500" />
                 </div>
-                <h2 className="text-xl md:text-4xl font-black text-white uppercase tracking-tighter">
+                <h2 className="text-base md:text-4xl font-black text-white uppercase tracking-tighter">
                   {miniGameData.type === 'PASSWORD' ? 'ВЗЛОМ СИСТЕМЫ!' : 'УТЕЧКА ДАННЫХ!'}
                 </h2>
-                <p className="text-zinc-400 text-[10px] md:text-lg font-mono bg-red-500/10 py-1 px-2 md:py-2 md:px-4 rounded-lg border border-red-500/20">
+                <p className="text-zinc-400 text-[7px] md:text-lg font-mono bg-red-500/10 py-0.5 px-1.5 md:py-2 md:px-4 rounded-lg border border-red-500/20">
                   {miniGameData.type === 'PASSWORD' ? 'ОШИБКА! ВВЕДИТЕ КОД ВОССТАНОВЛЕНИЯ' : 'ОШИБКА! ОБОРВИТЕ СОЕДИНЕНИЕ (3 КЛИКА)'}
                 </p>
               </div>
 
               {miniGameData.type === 'PASSWORD' ? (
-                <div className="space-y-4 md:space-y-6">
-                  <div className="text-center space-y-1 md:space-y-2 bg-zinc-950 p-3 md:p-4 rounded-xl md:rounded-2xl border border-zinc-800">
-                    <div className="text-[8px] md:text-sm text-purple-500/70 uppercase font-black tracking-widest animate-pulse">ЗАПОМНИТЕ ЭТОТ КОД:</div>
-                    <div className="text-3xl md:text-6xl font-black text-purple-500 font-mono tracking-[0.4em] drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]">
+                <div className="space-y-2 md:space-y-6">
+                  <div className="text-center space-y-0.5 md:space-y-2 bg-zinc-950 p-1.5 md:p-4 rounded-xl md:rounded-2xl border border-zinc-800">
+                    <div className="text-[6px] md:text-sm text-purple-500/70 uppercase font-black tracking-widest animate-pulse">ЗАПОМНИТЕ ЭТОТ КОД:</div>
+                    <div className="text-xl md:text-6xl font-black text-purple-500 font-mono tracking-[0.4em] drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]">
                       {miniGameData.target}
                     </div>
                   </div>
 
-                  <div className="flex justify-center gap-2 md:gap-3">
+                  <div className="flex justify-center gap-1 md:gap-3">
                     {miniGameData.target.split('').map((char, i) => (
-                      <div key={i} className={`w-8 h-12 md:w-16 md:h-20 flex items-center justify-center text-xl md:text-4xl font-black rounded-lg md:rounded-xl border-2 transition-all ${String(miniGameData.progress).length > i ? 'bg-purple-500/20 border-purple-500 text-purple-500' : 'bg-zinc-950 border-zinc-800 text-zinc-700'}`}>
+                      <div key={i} className={`w-6 h-9 md:w-16 md:h-20 flex items-center justify-center text-sm md:text-4xl font-black rounded-lg md:rounded-xl border-2 transition-all ${String(miniGameData.progress).length > i ? 'bg-purple-500/20 border-purple-500 text-purple-500' : 'bg-zinc-950 border-zinc-800 text-zinc-700'}`}>
                         {String(miniGameData.progress)[i] || '?'}
                       </div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-4 gap-1.5 md:gap-3">
+                  <div className="grid grid-cols-4 gap-1 md:gap-3">
                     {'ABCDEF123456'.split('').map(char => (
                       <button
                         key={char}
@@ -1093,7 +1157,7 @@ function GameContent() {
                             setMiniGameData({ ...miniGameData, progress: newProgress });
                           }
                         }}
-                        className="py-2 md:py-4 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-lg md:rounded-xl border border-zinc-700 active:scale-95 text-sm md:text-xl"
+                        className="py-1 md:py-4 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-lg md:rounded-xl border border-zinc-700 active:scale-95 text-[10px] md:text-xl"
                       >
                         {char}
                       </button>
@@ -1101,12 +1165,12 @@ function GameContent() {
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-6 md:gap-10 py-6 md:py-12">
+                <div className="flex flex-col items-center gap-2 md:gap-10 py-2 md:py-12">
                   <div className="relative">
                     <motion.div 
                       animate={{ rotate: 360 }}
                       transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-                      className="w-32 h-32 md:w-56 md:h-56 border-4 border-dashed border-red-500 rounded-full"
+                      className="w-20 h-20 md:w-56 md:h-56 border-4 border-dashed border-red-500 rounded-full"
                     />
                     <button
                       onClick={() => {
@@ -1118,14 +1182,14 @@ function GameContent() {
                           setMiniGameData({ ...miniGameData, progress: newProgress });
                         }
                       }}
-                      className="absolute inset-0 m-auto w-20 h-20 md:w-32 md:h-32 bg-red-500 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.5)] active:scale-90 transition-transform"
+                      className="absolute inset-0 m-auto w-12 h-12 md:w-32 md:h-32 bg-red-500 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.5)] active:scale-90 transition-transform"
                     >
-                      <Scissors className="w-10 h-10 md:w-16 md:h-16 text-black" />
+                      <Scissors className="w-6 h-6 md:w-16 md:h-16 text-black" />
                     </button>
                   </div>
-                  <div className="flex gap-3 md:gap-4">
+                  <div className="flex gap-1.5 md:gap-4">
                     {[...Array(3)].map((_, i) => (
-                      <div key={i} className={`w-3 h-3 md:w-6 md:h-6 rounded-full ${i < (miniGameData.progress as number) ? 'bg-purple-500' : 'bg-zinc-800'}`} />
+                      <div key={i} className={`w-2 h-2 md:w-6 md:h-6 rounded-full ${i < (miniGameData.progress as number) ? 'bg-purple-500' : 'bg-zinc-800'}`} />
                     ))}
                   </div>
                 </div>
@@ -1134,7 +1198,7 @@ function GameContent() {
               <div className="text-center">
                 <button 
                   onClick={handleMiniGameFailure}
-                  className="text-xs md:text-base text-zinc-600 uppercase font-bold tracking-widest hover:text-zinc-400"
+                  className="text-[10px] md:text-base text-zinc-600 uppercase font-bold tracking-widest hover:text-zinc-400"
                 >
                   [ Сдаться ]
                 </button>
@@ -1147,8 +1211,15 @@ function GameContent() {
               key="feedback"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex-1 flex flex-col items-center justify-center space-y-4 md:space-y-8 text-center p-4 overflow-y-auto custom-scrollbar h-full w-full max-w-5xl mx-auto"
+              className="flex-1 flex flex-col items-center justify-center space-y-4 md:space-y-8 text-center p-4 overflow-y-auto custom-scrollbar h-full w-full max-w-5xl mx-auto relative"
             >
+              <button 
+                onClick={() => setShowExitConfirm(true)}
+                className="absolute top-4 right-4 md:top-8 md:right-8 p-3 bg-red-500 text-white rounded-2xl shadow-xl z-20 hover:bg-red-600 transition-all"
+                title="Выйти в меню"
+              >
+                <Home className="w-5 h-5 md:w-8 md:h-8" />
+              </button>
               <div className="flex justify-center shrink-0">
                 <div className={`p-4 md:p-8 lg:p-10 rounded-full border-4 ${lastResult?.correct ? 'bg-purple-500/10 border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.3)]' : 'bg-red-500/10 border-red-500 shadow-[0_0_40px_rgba(239,68,68,0.3)]'}`}>
                   {lastResult?.correct ? <CheckCircle2 className="w-12 h-12 md:w-24 md:h-24 lg:w-32 lg:h-32 text-purple-500" /> : <ShieldAlert className="w-12 h-12 md:w-24 md:h-24 lg:w-32 lg:h-32 text-red-500" />}
@@ -1179,8 +1250,15 @@ function GameContent() {
               key="educational"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="flex-1 flex flex-col items-center justify-center p-2 md:p-4 w-full max-w-5xl mx-auto h-full overflow-hidden"
+              className="flex-1 flex flex-col items-center justify-center p-2 md:p-4 w-full max-w-5xl mx-auto h-full overflow-hidden relative"
             >
+              <button 
+                onClick={() => setShowExitConfirm(true)}
+                className="absolute top-4 right-4 md:top-8 md:right-8 p-3 bg-red-500 text-white rounded-2xl shadow-xl z-20 hover:bg-red-600 transition-all"
+                title="Выйти в меню"
+              >
+                <Home className="w-5 h-5 md:w-8 md:h-8" />
+              </button>
               <div className="bg-zinc-900/90 border border-zinc-800 p-4 md:p-8 lg:p-10 rounded-[2rem] md:rounded-[3rem] space-y-4 md:space-y-6 shadow-2xl backdrop-blur-3xl relative w-full max-h-full overflow-hidden flex flex-col">
                 <div className="absolute top-0 right-0 p-4 md:p-8 opacity-5 pointer-events-none">
                   <Award className="w-16 h-16 md:w-40 md:h-40 lg:w-56 lg:h-56 text-blue-500" />
@@ -1324,47 +1402,7 @@ function GameContent() {
             </motion.div>
           )}
 
-          {/* Reset Confirmation Modal */}
-          <AnimatePresence>
-            {showResetConfirm && (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl"
-              >
-                <motion.div 
-                  initial={{ scale: 0.9, y: 20 }}
-                  animate={{ scale: 1, y: 0 }}
-                  className="bg-zinc-900 border border-red-500/30 p-8 md:p-12 rounded-[2.5rem] w-full max-w-md space-y-8 text-center"
-                >
-                  <div className="p-4 bg-red-500/20 rounded-full w-fit mx-auto">
-                    <AlertTriangle className="w-12 h-12 text-red-500" />
-                  </div>
-                  <div className="space-y-3">
-                    <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter">Полный сброс?</h2>
-                    <p className="text-zinc-400 text-sm md:text-base leading-relaxed">
-                      Вы уверены, что хотите обнулить игру? Все ваши достижения, рекорды и звания будут безвозвратно удалены.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3">
-                    <button 
-                      onClick={resetProgress}
-                      className="w-full py-4 bg-red-500 text-black font-black uppercase tracking-widest hover:bg-red-400 transition-all rounded-xl"
-                    >
-                      Да, удалить всё
-                    </button>
-                    <button 
-                      onClick={() => setShowResetConfirm(false)}
-                      className="w-full py-4 bg-zinc-800 text-white font-black uppercase tracking-widest hover:bg-zinc-700 transition-all rounded-xl"
-                    >
-                      Отмена
-                    </button>
-                  </div>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Reset Confirmation Modal moved outside */}
 
           {gameState === 'LOADING' && (
             <motion.div 
@@ -1445,73 +1483,73 @@ function GameContent() {
               key="end"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex-1 flex flex-col items-center justify-center space-y-2 text-center w-full p-2 md:p-4 overflow-hidden h-full"
+              className="flex-1 flex flex-col items-center justify-center space-y-2 text-center w-full p-1.5 md:p-4 overflow-hidden h-full"
             >
-              <div className="bg-zinc-900/90 border border-zinc-800 p-4 md:p-8 rounded-[2rem] md:rounded-[3rem] backdrop-blur-2xl space-y-4 md:space-y-6 shadow-2xl w-full max-w-2xl max-h-full overflow-y-auto flex flex-col items-center scrollbar-hide shrink-0">
+              <div className="bg-zinc-900/90 border border-zinc-800 p-1.5 md:p-8 rounded-[1.5rem] md:rounded-[3rem] backdrop-blur-2xl space-y-1 md:space-y-6 shadow-2xl w-full max-w-2xl max-h-full overflow-y-auto flex flex-col items-center scrollbar-hide shrink-0">
                 
                 {/* Rank Badge Pill */}
-                <div className="w-full max-w-md bg-zinc-950 border-2 border-white/10 rounded-xl md:rounded-full p-1.5 md:p-2.5 flex items-center gap-3 md:gap-4 shadow-[0_0_40px_rgba(0,0,0,0.6)] relative overflow-hidden group shrink-0">
+                <div className="w-full max-w-md bg-zinc-950 border-2 border-white/10 rounded-xl md:rounded-full p-0.5 md:p-2.5 flex items-center gap-1.5 md:gap-4 shadow-[0_0_40px_rgba(0,0,0,0.6)] relative overflow-hidden group shrink-0">
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-transparent opacity-50" />
-                  <div className={`shrink-0 w-10 h-10 md:w-16 md:h-16 rounded-full border-2 ${rank.border || 'border-purple-500'} bg-zinc-900 flex items-center justify-center shadow-xl z-10 relative`}>
-                    <Award className={`w-5 h-5 md:w-8 md:h-8 ${rank.color}`} />
+                  <div className={`shrink-0 w-6 h-6 md:w-16 md:h-16 rounded-full border-2 ${rank.border || 'border-purple-500'} bg-zinc-900 flex items-center justify-center shadow-xl z-10 relative`}>
+                    <Award className={`w-2.5 h-2.5 md:w-8 md:h-8 ${rank.color}`} />
                     <div className="absolute inset-0 rounded-full bg-current opacity-5 animate-pulse" />
                   </div>
                   <div className="flex-1 text-left z-10 py-0.5">
-                    <div className="text-[8px] md:text-[10px] text-zinc-500 uppercase font-black tracking-[0.2em] mb-0.5">Ваш итоговый статус</div>
-                    <div className={`text-sm md:text-xl font-black uppercase tracking-tight leading-tight ${rank.color} drop-shadow-[0_0_10px_rgba(0,0,0,0.5)]`}>{rank.title}</div>
+                    <div className="text-[5px] md:text-[10px] text-zinc-500 uppercase font-black tracking-[0.2em] mb-0.5">Ваш итоговый статус</div>
+                    <div className={`text-[9px] md:text-xl font-black uppercase tracking-tight leading-tight ${rank.color} drop-shadow-[0_0_10px_rgba(0,0,0,0.5)]`}>{rank.title}</div>
                   </div>
                 </div>
 
-                <div className="space-y-1 md:space-y-2 shrink-0">
-                  <h2 className="text-2xl md:text-5xl font-black uppercase italic terminal-glow leading-none tracking-tighter text-white drop-shadow-[0_0_20px_rgba(168,85,247,0.6)]">
+                <div className="space-y-0.5 md:space-y-2 shrink-0">
+                  <h2 className="text-lg md:text-5xl font-black uppercase italic terminal-glow leading-none tracking-tighter text-white drop-shadow-[0_0_20px_rgba(168,85,247,0.6)]">
                     {health > 0 ? 'Миссия Выполнена' : 'Связь Потеряна'}
                   </h2>
-                  <div className="flex justify-center gap-6 md:gap-12 pt-2 md:pt-4">
+                  <div className="flex justify-center gap-4 md:gap-12 pt-0.5 md:pt-4">
                     <div className="text-center">
-                      <div className="text-2xl md:text-4xl font-black text-white">{score}</div>
-                      <div className="text-[8px] md:text-[10px] uppercase text-zinc-500 font-mono font-bold tracking-[0.15em]">Счет</div>
+                      <div className="text-base md:text-4xl font-black text-white">{score}</div>
+                      <div className="text-[6px] md:text-[10px] uppercase text-zinc-500 font-mono font-bold tracking-[0.15em]">Счет</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl md:text-4xl font-black text-white">{currentLevel + (health > 0 ? 1 : 0)}</div>
-                      <div className="text-[8px] md:text-[10px] uppercase text-zinc-500 font-mono font-bold tracking-[0.15em]">Уровни</div>
+                      <div className="text-base md:text-4xl font-black text-white">{currentLevel + (health > 0 ? 1 : 0)}</div>
+                      <div className="text-[6px] md:text-[10px] uppercase text-zinc-500 font-mono font-bold tracking-[0.15em]">Уровни</div>
                     </div>
                   </div>
                 </div>
                 
-                <div className="bg-zinc-950/50 border border-zinc-800/50 p-3 md:p-6 rounded-[1.5rem] md:rounded-[2rem] max-w-xl w-full text-left space-y-2 md:space-y-4 shadow-inner">
+                <div className="bg-zinc-950/50 border border-zinc-800/50 p-2 md:p-6 rounded-[1rem] md:rounded-[2rem] max-w-xl w-full text-left space-y-1 md:space-y-4 shadow-inner">
                   <div className="flex justify-between items-start">
-                    <h3 className="font-black text-[10px] md:text-base uppercase text-purple-500 italic tracking-wider">Рапорт Управления «К»</h3>
-                    <div className="text-[7px] md:text-[9px] text-zinc-600 font-mono opacity-50">ID: {Math.random().toString(36).substr(2, 6).toUpperCase()}</div>
+                    <h3 className="font-black text-[8px] md:text-base uppercase text-purple-500 italic tracking-wider">Рапорт Управления «К»</h3>
+                    <div className="text-[5px] md:text-[9px] text-zinc-600 font-mono opacity-50">ID: {Math.random().toString(36).substr(2, 6).toUpperCase()}</div>
                   </div>
                   
-                  <p className="text-zinc-400 text-[10px] md:text-base leading-relaxed font-medium">
+                  <p className="text-zinc-400 text-[8px] md:text-base leading-relaxed font-medium">
                     {health > 0 
                       ? "Вы продемонстрировали выдающиеся навыки кибердетектива. Граждане Беларуси защищены."
                       : "Цифровой иммунитет сломлен. Мошенники оказались хитрее. Изучите ошибки и попробуйте снова."}
                   </p>
 
-                  <div className="grid grid-cols-2 gap-3 py-2 md:py-4 border-y border-zinc-800/30">
+                  <div className="grid grid-cols-2 gap-2 py-1 md:py-4 border-y border-zinc-800/30">
                     <div className="space-y-0.5">
-                      <div className="text-[7px] md:text-[9px] uppercase text-zinc-500 font-bold tracking-widest">Точность</div>
-                      <div className="text-xs md:text-xl font-black text-white font-mono">
+                      <div className="text-[5px] md:text-[9px] uppercase text-zinc-500 font-bold tracking-widest">Точность</div>
+                      <div className="text-[9px] md:text-xl font-black text-white font-mono">
                         {stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0}%
                       </div>
                     </div>
                     <div className="space-y-0.5">
-                      <div className="text-[7px] md:text-[9px] uppercase text-zinc-500 font-bold tracking-widest">Статус</div>
-                      <div className={`text-xs md:text-xl font-black font-mono ${health > 0 ? 'text-purple-500' : 'text-red-500'}`}>
+                      <div className="text-[5px] md:text-[9px] uppercase text-zinc-500 font-bold tracking-widest">Статус</div>
+                      <div className={`text-[9px] md:text-xl font-black font-mono ${health > 0 ? 'text-purple-500' : 'text-red-500'}`}>
                         {health > 0 ? 'УСПЕХ' : 'ПРОВАЛ'}
                       </div>
                     </div>
                   </div>
 
                   {evidence.length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-[7px] md:text-[9px] uppercase text-zinc-500 font-bold tracking-widest">Собранные улики</p>
-                      <div className="flex flex-wrap gap-1.5">
+                    <div className="space-y-0.5">
+                      <p className="text-[5px] md:text-[9px] uppercase text-zinc-500 font-bold tracking-widest">Собранные улики</p>
+                      <div className="flex flex-wrap gap-1">
                         {evidence.slice(0, 4).map((item, i) => (
-                          <div key={i} className="flex items-center gap-1.5 px-2 py-1 bg-zinc-900 rounded-full border border-zinc-800 text-[7px] md:text-[10px] text-zinc-300 font-bold shadow-sm">
-                            <FileText className="w-2.5 h-2.5 text-blue-400" />
+                          <div key={i} className="flex items-center gap-1 px-1 py-0.5 bg-zinc-900 rounded-full border border-zinc-800 text-[5px] md:text-10px text-zinc-300 font-bold shadow-sm">
+                            <FileText className="w-1.5 h-1.5 text-blue-400" />
                             {item}
                           </div>
                         ))}
@@ -1520,16 +1558,16 @@ function GameContent() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 w-full max-w-xs md:max-w-md">
+                <div className="grid grid-cols-1 gap-1 w-full max-w-xs md:max-w-md">
                   <button 
                     onClick={() => window.location.reload()}
-                    className="w-full py-3 md:py-4 bg-purple-500 text-black font-black uppercase tracking-[0.15em] hover:bg-purple-400 transition-all rounded-xl md:rounded-2xl text-[10px] md:text-base shadow-[0_10px_20px_rgba(168,85,247,0.3)] active:scale-95"
+                    className="w-full py-2 md:py-4 bg-purple-500 text-black font-black uppercase tracking-[0.15em] hover:bg-purple-400 transition-all rounded-xl md:rounded-2xl text-[8px] md:text-base shadow-[0_10px_20px_rgba(168,85,247,0.3)] active:scale-95"
                   >
                     Новая смена
                   </button>
                   <button 
                     onClick={() => setGameState('START')}
-                    className="w-full py-3 md:py-4 bg-zinc-900 text-white font-black uppercase tracking-[0.15em] hover:bg-zinc-800 transition-all rounded-xl md:rounded-2xl border border-zinc-800 text-[10px] md:text-base active:scale-95"
+                    className="w-full py-2 md:py-4 bg-zinc-900 text-white font-black uppercase tracking-[0.15em] hover:bg-zinc-800 transition-all rounded-xl md:rounded-2xl border border-zinc-800 text-[8px] md:text-base active:scale-95"
                   >
                     В главное меню
                   </button>
@@ -1538,9 +1576,88 @@ function GameContent() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Reset Confirmation Modal - Moved outside main AnimatePresence to fix mode="wait" warning */}
+        <AnimatePresence>
+          {showResetConfirm && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                className="bg-zinc-900 border border-red-500/30 p-8 md:p-12 rounded-[2.5rem] w-full max-w-md space-y-8 text-center"
+              >
+                <div className="p-4 bg-red-500/20 rounded-full w-fit mx-auto">
+                  <AlertTriangle className="w-12 h-12 text-red-500" />
+                </div>
+                <div className="space-y-3">
+                  <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter">Полный сброс?</h2>
+                  <p className="text-zinc-400 text-sm md:text-base leading-relaxed">
+                    Вы уверены, что хотите обнулить игру? Все ваши достижения, рекорды и звания будут безвозвратно удалены.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  <button 
+                    onClick={resetProgress}
+                    className="w-full py-4 bg-red-500 text-black font-black uppercase tracking-widest hover:bg-red-400 transition-all rounded-xl"
+                  >
+                    Да, удалить всё
+                  </button>
+                  <button 
+                    onClick={() => setShowResetConfirm(false)}
+                    className="w-full py-4 bg-zinc-800 text-white font-black uppercase tracking-widest hover:bg-zinc-700 transition-all rounded-xl"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
         {/* FAQ Modal */}
         <AnimatePresence>
+          {showExitConfirm && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-zinc-900 border-2 border-red-500/50 p-8 rounded-[2.5rem] max-w-sm w-full text-center space-y-6 shadow-2xl"
+              >
+                <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto">
+                  <Home className="w-10 h-10 text-red-500" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Выйти из игры?</h3>
+                  <p className="text-zinc-400 font-bold">Весь текущий прогресс смены будет потерян.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <button 
+                    onClick={() => setShowExitConfirm(false)}
+                    className="py-4 bg-zinc-800 text-white font-black uppercase tracking-widest rounded-2xl hover:bg-zinc-700 transition-all"
+                  >
+                    Отмена
+                  </button>
+                  <button 
+                    onClick={handleExitToHome}
+                    className="py-4 bg-red-500 text-white font-black uppercase tracking-widest rounded-2xl hover:bg-red-400 transition-all shadow-lg"
+                  >
+                    Выйти
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+
           {showFAQ && (
             <motion.div 
               initial={{ opacity: 0 }}
