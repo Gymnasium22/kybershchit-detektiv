@@ -39,7 +39,7 @@ import {
   Home,
   ChevronRight
 } from 'lucide-react';
-import { SCENARIOS, ScenarioType } from './types';
+import { SCENARIOS, ScenarioType, NEW_SCENARIOS } from './types';
 
 type GameState = 'START' | 'STORY' | 'TUTORIAL' | 'PLAYING' | 'FEEDBACK' | 'EDUCATIONAL' | 'MINIGAME' | 'END' | 'GLOSSARY' | 'PROFILE' | 'LOADING';
 
@@ -86,10 +86,13 @@ function GameContent() {
   const [tutorialStep, setTutorialStep] = useState(0);
   const [userInteracted, setUserInteracted] = useState(false); // Отслеживаем первое взаимодействие
   const [voiceAudioFailed, setVoiceAudioFailed] = useState(false); // Если аудио не запустилось
+  const [isNewGamePlus, setIsNewGamePlus] = useState(false); // Режим новой смены после прохождения
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const bgMusicRef = React.useRef<HTMLAudioElement | null>(null);
 
-  const scenario = SCENARIOS[currentLevel];
+  // Используем разные сценарии для обычной игры и новой смены
+  const scenariosList = isNewGamePlus ? NEW_SCENARIOS : SCENARIOS;
+  const scenario = scenariosList[currentLevel];
 
   const getRank = useCallback(() => {
     if (score >= 5000) return { title: 'Генерал Кибервойск', color: 'text-purple-400', bg: 'bg-purple-500/10' };
@@ -462,9 +465,9 @@ function GameContent() {
     setGameState('LOADING');
 
     setTimeout(() => {
-      if (currentLevel < SCENARIOS.length - 1) {
+      if (currentLevel < scenariosList.length - 1) {
         const nextIdx = currentLevel + 1;
-        const nextScenario = SCENARIOS[nextIdx];
+        const nextScenario = scenariosList[nextIdx];
         if (nextScenario.isSpecialMission) {
           playSound('minigame');
         }
@@ -477,10 +480,16 @@ function GameContent() {
         setGameState('PLAYING');
 
         // Если следующий сценарий с голосовым сообщением - запускаем его с задержкой
+        // userInteracted уже должен быть true к этому моменту
         if (nextScenario.type === ScenarioType.VOICE && nextScenario.audioUrl) {
           setTimeout(() => {
-            playAudioFile(nextScenario.audioUrl);
-          }, 300);
+            if (userInteracted) {
+              playAudioFile(nextScenario.audioUrl);
+            } else {
+              // Если вдруг userInteracted ещё false - помечаем как неудачу
+              setVoiceAudioFailed(true);
+            }
+          }, 500);
         }
       } else {
         playSound('win');
@@ -491,17 +500,16 @@ function GameContent() {
         setGameState('END');
       }
     }, 1500);
-  }, [currentLevel, playSound, score, highScore, updateStats, playAudioFile]);
+  }, [currentLevel, playSound, score, highScore, updateStats, playAudioFile, scenariosList, userInteracted, isNewGamePlus]);
 
   // Ручной запуск голосового сообщения (для мобильных если не запустилось автоматически)
   const handlePlayVoiceAudio = useCallback(() => {
     setUserInteracted(true); // Разблокируем аудио для мобильных
+    
     if (scenario.type === ScenarioType.VOICE && scenario.audioUrl) {
       setVoiceAudioFailed(false);
-      // Небольшая задержка чтобы userInteracted успел обновиться
-      setTimeout(() => {
-        playAudioFile(scenario.audioUrl);
-      }, 50);
+      // Вызываем playAudioFile ПРЯМО СЕЙЧАС без setTimeout - это критично для мобильных
+      playAudioFile(scenario.audioUrl);
     }
   }, [scenario.type, scenario.audioUrl, playAudioFile]);
 
