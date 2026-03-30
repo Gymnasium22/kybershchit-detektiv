@@ -254,14 +254,37 @@ function GameContent() {
   }, []);
 
   const playAudioFile = useCallback(async (url: string, onEnd?: () => void) => {
-    stopAudio();
+    // Если звук выключен, не пытаемся играть
+    if (!isSoundEnabled) {
+      setVoiceAudioFailed(true);
+      return;
+    }
+
+    stopAudio(); // останавливаем предыдущее воспроизведение
     setVoiceAudioFailed(false);
 
     try {
-      // УБИРАЕМ проверку fetch — она ломает user interaction context на мобильных!
       const audio = new Audio(url);
       audio.preload = 'auto';
       audio.volume = 1.0;
+
+      // Дожидаемся, пока аудио можно будет воспроизвести
+      await new Promise<void>((resolve, reject) => {
+        const canPlay = () => {
+          audio.removeEventListener('canplaythrough', canPlay);
+          audio.removeEventListener('error', reject);
+          resolve();
+        };
+        const errorHandler = (e: Event) => {
+          audio.removeEventListener('canplaythrough', canPlay);
+          audio.removeEventListener('error', errorHandler);
+          reject(e);
+        };
+        audio.addEventListener('canplaythrough', canPlay, { once: true });
+        audio.addEventListener('error', errorHandler, { once: true });
+        audio.load();
+      });
+
       audioRef.current = audio;
       setIsVoicePlaying(true);
 
@@ -272,17 +295,16 @@ function GameContent() {
         bgMusicRef.current.pause();
       }
 
-      const resumeBgMusic = () => {
-        if (isSoundEnabled && bgMusicRef.current && bgMusicWasPlaying) {
-          bgMusicRef.current.play().catch(() => {});
-        }
-      };
+      // Запускаем воспроизведение
+      await audio.play();
 
       audio.onended = () => {
         setIsVoicePlaying(false);
         audioRef.current = null;
         setVoiceAudioFailed(false);
-        resumeBgMusic();
+        if (isSoundEnabled && bgMusicRef.current && bgMusicWasPlaying) {
+          bgMusicRef.current.play().catch(() => {});
+        }
         if (onEnd) onEnd();
       };
 
@@ -291,27 +313,12 @@ function GameContent() {
         setIsVoicePlaying(false);
         audioRef.current = null;
         setVoiceAudioFailed(true);
-        resumeBgMusic();
+        if (isSoundEnabled && bgMusicRef.current && bgMusicWasPlaying) {
+          bgMusicRef.current.play().catch(() => {});
+        }
       };
-
-      // КРИТИЧНО: запускаем сразу, без await!
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            console.log('Audio started playing:', url);
-            setVoiceAudioFailed(false);
-          })
-          .catch((error) => {
-            console.warn('Audio play rejected:', error);
-            setIsVoicePlaying(false);
-            audioRef.current = null;
-            setVoiceAudioFailed(true);
-            resumeBgMusic();
-          });
-      }
-    } catch (e) {
-      console.error("Audio play failed:", e);
+    } catch (err) {
+      console.error('Audio playback failed:', err);
       setIsVoicePlaying(false);
       audioRef.current = null;
       setVoiceAudioFailed(true);
@@ -320,12 +327,10 @@ function GameContent() {
 
   const handleStart = useCallback(() => {
     playSound('click');
-    setUserInteracted(true); // Разблокируем аудио для мобильных
+    setUserInteracted(true);
     setGameState('STORY');
-    // Запускаем briefing аудио напрямую после клика - это работает на мобильных
-    setTimeout(() => {
-      playAudioFile('audio/briefing.mp3');
-    }, 100);
+    // Убираем setTimeout – аудио запустится сразу после клика
+    playAudioFile('audio/briefing.mp3');
   }, [playSound, playAudioFile]);
 
   const startInvestigation = useCallback((withTutorial = false) => {
@@ -472,9 +477,7 @@ function GameContent() {
 
         // Автозапуск голосовых только на десктопе — на мобильных пользователь нажмёт кнопку сам
         if (!isMobile && nextScenario.type === ScenarioType.VOICE && nextScenario.audioUrl) {
-          setTimeout(() => {
-            playAudioFile(nextScenario.audioUrl);
-          }, 500);
+          playAudioFile(nextScenario.audioUrl);
         }
       } else {
         playSound('win');
@@ -489,12 +492,9 @@ function GameContent() {
 
   // Ручной запуск голосового сообщения (для мобильных если не запустилось автоматически)
   const handlePlayVoiceAudio = useCallback(() => {
-    // Разблокируем аудио для мобильных
     setUserInteracted(true);
-    
     if (scenario.type === ScenarioType.VOICE && scenario.audioUrl) {
       setVoiceAudioFailed(false);
-      // Запускаем СРАЗУ без setTimeout — критично для мобильных!
       playAudioFile(scenario.audioUrl);
     }
   }, [scenario.type, scenario.audioUrl, playAudioFile]);
