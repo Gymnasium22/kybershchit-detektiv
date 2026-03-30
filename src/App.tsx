@@ -87,8 +87,14 @@ function GameContent() {
   const [userInteracted, setUserInteracted] = useState(false); // Отслеживаем первое взаимодействие
   const [voiceAudioFailed, setVoiceAudioFailed] = useState(false); // Если аудио не запустилось
   const [isNewGamePlus, setIsNewGamePlus] = useState(false); // Режим новой смены после прохождения
+  const [isMobile, setIsMobile] = useState(false); // Мобильное устройство
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const bgMusicRef = React.useRef<HTMLAudioElement | null>(null);
+
+  // Определяем мобильное устройство
+  useEffect(() => {
+    setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+  }, []);
 
   // Используем разные сценарии для обычной игры и новой смены
   const scenariosList = isNewGamePlus ? NEW_SCENARIOS : SCENARIOS;
@@ -249,26 +255,17 @@ function GameContent() {
 
   const playAudioFile = useCallback(async (url: string, onEnd?: () => void) => {
     stopAudio();
-    setVoiceAudioFailed(false); // Сбрасываем флаг ошибки
+    setVoiceAudioFailed(false);
 
     try {
-      // Check if file exists before playing to avoid console errors
-      const response = await fetch(url, { method: 'HEAD' });
-      if (!response.ok) {
-        console.warn(`Audio file not found: ${url}`);
-        setVoiceAudioFailed(true);
-        return;
-      }
-
+      // УБИРАЕМ проверку fetch — она ломает user interaction context на мобильных!
       const audio = new Audio(url);
-      // Важно для мобильных: предварительно загружаем и настраиваем
       audio.preload = 'auto';
-      // Увеличиваем громкость для голосовых сообщений
       audio.volume = 1.0;
       audioRef.current = audio;
       setIsVoicePlaying(true);
 
-      // Приостанавливаем фоновую музыку и сохраняем её состояние
+      // Приостанавливаем фоновую музыку
       let bgMusicWasPlaying = false;
       if (bgMusicRef.current && !bgMusicRef.current.paused) {
         bgMusicWasPlaying = true;
@@ -276,13 +273,8 @@ function GameContent() {
       }
 
       const resumeBgMusic = () => {
-        // Возобновляем фоновую музыку если она играла до голосового сообщения
         if (isSoundEnabled && bgMusicRef.current && bgMusicWasPlaying) {
-          bgMusicRef.current.play().then(() => {
-            console.log('Background music resumed');
-          }).catch((err) => {
-            console.warn('Failed to resume background music:', err);
-          });
+          bgMusicRef.current.play().catch(() => {});
         }
       };
 
@@ -302,17 +294,16 @@ function GameContent() {
         resumeBgMusic();
       };
 
-      // Для iOS Safari: явно обрабатываем promise
+      // КРИТИЧНО: запускаем сразу, без await!
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise
           .then(() => {
-            // Успешно заиграло
             console.log('Audio started playing:', url);
             setVoiceAudioFailed(false);
           })
           .catch((error) => {
-            console.warn('Audio play rejected (may need user interaction):', error);
+            console.warn('Audio play rejected:', error);
             setIsVoicePlaying(false);
             audioRef.current = null;
             setVoiceAudioFailed(true);
@@ -479,16 +470,10 @@ function GameContent() {
         setVoiceAudioFailed(false); // Сбрасываем флаг ошибки
         setGameState('PLAYING');
 
-        // Если следующий сценарий с голосовым сообщением - запускаем его с задержкой
-        // userInteracted уже должен быть true к этому моменту
-        if (nextScenario.type === ScenarioType.VOICE && nextScenario.audioUrl) {
+        // Автозапуск голосовых только на десктопе — на мобильных пользователь нажмёт кнопку сам
+        if (!isMobile && nextScenario.type === ScenarioType.VOICE && nextScenario.audioUrl) {
           setTimeout(() => {
-            if (userInteracted) {
-              playAudioFile(nextScenario.audioUrl);
-            } else {
-              // Если вдруг userInteracted ещё false - помечаем как неудачу
-              setVoiceAudioFailed(true);
-            }
+            playAudioFile(nextScenario.audioUrl);
           }, 500);
         }
       } else {
@@ -500,15 +485,16 @@ function GameContent() {
         setGameState('END');
       }
     }, 1500);
-  }, [currentLevel, playSound, score, highScore, updateStats, playAudioFile, scenariosList, userInteracted, isNewGamePlus]);
+  }, [currentLevel, playSound, score, highScore, updateStats, playAudioFile, scenariosList, userInteracted, isNewGamePlus, isMobile]);
 
   // Ручной запуск голосового сообщения (для мобильных если не запустилось автоматически)
   const handlePlayVoiceAudio = useCallback(() => {
-    setUserInteracted(true); // Разблокируем аудио для мобильных
+    // Разблокируем аудио для мобильных
+    setUserInteracted(true);
     
     if (scenario.type === ScenarioType.VOICE && scenario.audioUrl) {
       setVoiceAudioFailed(false);
-      // Вызываем playAudioFile ПРЯМО СЕЙЧАС без setTimeout - это критично для мобильных
+      // Запускаем СРАЗУ без setTimeout — критично для мобильных!
       playAudioFile(scenario.audioUrl);
     }
   }, [scenario.type, scenario.audioUrl, playAudioFile]);
@@ -597,21 +583,6 @@ function GameContent() {
 
     return () => stopAudio();
   }, [gameState, stopAudio]);
-
-  // Таймер для проверки, запустилось ли голосовое сообщение
-  useEffect(() => {
-    if (gameState === 'PLAYING' && scenario.type === ScenarioType.VOICE && scenario.audioUrl && userInteracted) {
-      // Если через 3 секунды аудио всё ещё не играет - помечаем как неудачу
-      const timer = setTimeout(() => {
-        // Проверяем что аудио действительно не играет и не было успешно запущено
-        if (!isVoicePlaying && audioRef.current === null) {
-          console.warn('Voice audio failed to start after 3s');
-          setVoiceAudioFailed(true);
-        }
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [gameState, scenario.type, scenario.audioUrl, userInteracted, isVoicePlaying]);
 
   useEffect(() => {
     if (gameState !== 'PLAYING' || isFrozen || isVoicePlaying) return;
@@ -976,8 +947,8 @@ function GameContent() {
                           </p>
                         </div>
                         
-                        {/* Кнопка ручного запуска если аудио не запустилось */}
-                        {voiceAudioFailed && (
+                        {/* Кнопка ручного запуска — на мобильных показываем ВСЕГДА когда не играет */}
+                        {(voiceAudioFailed || (isMobile && !isVoicePlaying && scenario.type === ScenarioType.VOICE)) && (
                           <motion.button
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
@@ -988,10 +959,10 @@ function GameContent() {
                             className="px-6 py-3 bg-purple-500 hover:bg-purple-400 text-black font-black text-sm md:text-base rounded-2xl shadow-[0_0_30px_rgba(168,85,247,0.5)] flex items-center gap-2 transition-all active:scale-95"
                           >
                             <Volume2 className="w-5 h-5 md:w-6 md:h-6" />
-                            Воспроизвести голос
+                            {voiceAudioFailed ? 'Повторить' : 'Воспроизвести голос'}
                           </motion.button>
                         )}
-                        
+
                         <div className="bg-zinc-900/90 p-3 md:p-4 rounded-2xl border border-zinc-800/50 text-center italic text-[8px] md:text-sm text-zinc-300 leading-relaxed shadow-xl overflow-hidden">
                           {isVoicePlaying ? "«Слушайте сообщение внимательно...»" : voiceAudioFailed ? "«Нажмите кнопку выше для воспроизведения»" : "«Ожидание ответа...»"}
                         </div>
