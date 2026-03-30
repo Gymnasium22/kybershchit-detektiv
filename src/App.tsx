@@ -248,13 +248,6 @@ function GameContent() {
     stopAudio();
     setVoiceAudioFailed(false); // Сбрасываем флаг ошибки
 
-    // На мобильных устройствах без взаимодействия пользователя не играем
-    if (!userInteracted) {
-      console.warn("Audio blocked: no user interaction yet");
-      setVoiceAudioFailed(true);
-      return;
-    }
-
     try {
       // Check if file exists before playing to avoid console errors
       const response = await fetch(url, { method: 'HEAD' });
@@ -316,7 +309,7 @@ function GameContent() {
             setVoiceAudioFailed(false);
           })
           .catch((error) => {
-            console.warn('Audio play rejected:', error);
+            console.warn('Audio play rejected (may need user interaction):', error);
             setIsVoicePlaying(false);
             audioRef.current = null;
             setVoiceAudioFailed(true);
@@ -329,7 +322,7 @@ function GameContent() {
       audioRef.current = null;
       setVoiceAudioFailed(true);
     }
-  }, [stopAudio, userInteracted, isSoundEnabled]);
+  }, [stopAudio, isSoundEnabled]);
 
   const handleStart = useCallback(() => {
     playSound('click');
@@ -502,9 +495,13 @@ function GameContent() {
 
   // Ручной запуск голосового сообщения (для мобильных если не запустилось автоматически)
   const handlePlayVoiceAudio = useCallback(() => {
+    setUserInteracted(true); // Разблокируем аудио для мобильных
     if (scenario.type === ScenarioType.VOICE && scenario.audioUrl) {
       setVoiceAudioFailed(false);
-      playAudioFile(scenario.audioUrl);
+      // Небольшая задержка чтобы userInteracted успел обновиться
+      setTimeout(() => {
+        playAudioFile(scenario.audioUrl);
+      }, 50);
     }
   }, [scenario.type, scenario.audioUrl, playAudioFile]);
 
@@ -596,13 +593,14 @@ function GameContent() {
   // Таймер для проверки, запустилось ли голосовое сообщение
   useEffect(() => {
     if (gameState === 'PLAYING' && scenario.type === ScenarioType.VOICE && scenario.audioUrl && userInteracted) {
-      // Если через 2 секунды аудио всё ещё не играет - помечаем как неудачу
+      // Если через 3 секунды аудио всё ещё не играет - помечаем как неудачу
       const timer = setTimeout(() => {
+        // Проверяем что аудио действительно не играет и не было успешно запущено
         if (!isVoicePlaying && audioRef.current === null) {
-          console.warn('Voice audio failed to start after 2s');
+          console.warn('Voice audio failed to start after 3s');
           setVoiceAudioFailed(true);
         }
-      }, 2000);
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [gameState, scenario.type, scenario.audioUrl, userInteracted, isVoicePlaying]);
