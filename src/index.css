@@ -1,12 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
-@theme {
+:root {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-}
-
-:root {
   --bg: #0a0a0c;
   --card-bg: #151619;
   --accent: #a855f7; /* Purple 500 */
@@ -21,7 +18,7 @@ body {
   background-color: var(--bg);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  overflow-x: hidden;
+  overflow: hidden; /* Убираем прокрутку */
 }
 
 .terminal-glow {
@@ -53,4 +50,14 @@ body {
 
 .animate-shake {
   animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+/* Добавление минимальной высоты для кнопок */
+button {
+  min-height: 44px;
+}
+
+/* Удаление overflow-hidden для предотвращения обрезания содержимого */
+.container {
+  overflow: auto;
 }

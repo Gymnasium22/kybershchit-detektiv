@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, Component, ErrorInfo, ReactNode } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Shield, 
@@ -28,16 +28,13 @@ import {
   Radio,
   FileText,
   Trophy,
-  Smartphone,
   Heart,
   Award,
   Zap,
   Volume2,
   VolumeX,
   QrCode,
-  Terminal,
-  Home,
-  ChevronRight
+  Home
 } from 'lucide-react';
 import { SCENARIOS, ScenarioType, NEW_SCENARIOS } from './types';
 
@@ -267,6 +264,7 @@ function GameContent() {
       const audio = new Audio(url);
       audio.preload = 'auto';
       audio.volume = 1.0;
+      audio.load(); // Lazy load
 
       // Дожидаемся, пока аудио можно будет воспроизвести
       await new Promise<void>((resolve, reject) => {
@@ -530,7 +528,7 @@ function GameContent() {
           // Пытаемся запустить сразу или возобновить если пауза
           if (bgMusicRef.current.paused) {
             await bgMusicRef.current.play();
-            console.log('Background music started/resumed');
+            // Background music started/resumed
           }
         } catch (e) {
           // Если не получилось - вешаем обработчики на все клики
@@ -563,9 +561,9 @@ function GameContent() {
       const timer = setTimeout(() => {
         if (bgMusicRef.current && bgMusicRef.current.paused) {
           bgMusicRef.current.play().then(() => {
-            console.log('Background music auto-resumed after voice');
+            // Background music auto-resumed after voice
           }).catch((err) => {
-            console.warn('Failed to auto-resume background music:', err);
+            // Failed to auto-resume background music
           });
         }
       }, 500);
@@ -609,7 +607,7 @@ function GameContent() {
   ];
 
   return (
-    <div className={`h-[100dvh] w-full flex flex-col items-center justify-center p-1 md:p-4 relative overflow-hidden font-sans ${isShaking ? 'animate-shake' : ''} bg-black text-white`}>
+    <div className="h-screen w-screen overflow-hidden flex items-center justify-center">
       <div className="scanline" />
       
       {/* Background elements */}
@@ -638,10 +636,17 @@ function GameContent() {
                       bgMusicRef.current.play().catch(() => {});
                     }
                   }}
-                  className="absolute -top-12 -left-12 p-3 md:p-4 bg-zinc-900/80 hover:bg-zinc-800 rounded-full border border-white/10 text-zinc-400 transition-all z-20 shadow-xl backdrop-blur-md"
-                  title={isSoundEnabled ? "Выключить звук" : "Включить звук"}
+                  onTouchStart={() => {
+                    setUserInteracted(true);
+                    setIsSoundEnabled(!isSoundEnabled);
+                    if (!isSoundEnabled && bgMusicRef.current) {
+                      bgMusicRef.current.play().catch(() => {});
+                    }
+                  }}
+                  className="absolute -top-12 -left-12 p-3 md:p-4 bg-zinc-900/80 hover:bg-zinc-800 rounded-full border border-white/10 text-zinc-400 transition-all z-20 shadow-xl backdrop-blur-md focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                  aria-label={isSoundEnabled ? "Выключить звук" : "Включить звук"}
                 >
-                  {isSoundEnabled ? <Volume2 className="w-5 h-5 md:w-8 md:h-8" /> : <VolumeX className="w-5 h-5 md:w-8 md:h-8" />}
+                  {isSoundEnabled ? <Volume2 className="w-5 h-5 md:w-8 md:h-8" aria-label="Звук включен" /> : <VolumeX className="w-5 h-5 md:w-8 md:h-8" aria-label="Звук выключен" />}
                 </button>
                 <motion.div 
                   animate={{ 
@@ -683,25 +688,31 @@ function GameContent() {
               <div className="grid grid-cols-1 gap-2 md:gap-3 w-full max-w-xs md:max-w-lg lg:max-w-xl mx-auto shrink-0">
                 <button 
                   onClick={handleStart}
-                  className="group relative overflow-hidden px-6 py-4 md:py-5 lg:py-6 bg-purple-500 text-black font-black text-base md:text-2xl lg:text-3xl uppercase tracking-tighter hover:bg-purple-400 transition-all active:scale-95 flex items-center justify-center gap-2 md:gap-4 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl shadow-[0_20px_50px_rgba(168,85,247,0.3)]"
+                  onTouchStart={handleStart}
+                  className="group relative overflow-hidden px-6 py-4 md:py-5 lg:py-6 bg-purple-500 text-black font-black text-base md:text-2xl lg:text-3xl uppercase tracking-tighter hover:bg-purple-400 transition-all active:scale-95 flex items-center justify-center gap-2 md:gap-4 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl shadow-[0_20px_50px_rgba(168,85,247,0.3)] focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                  aria-label="Начать игру"
                 >
                   Начать службу
-                  <ArrowRight className="w-4 h-4 md:w-6 md:h-6 lg:w-8 lg:h-8" />
+                  <ArrowRight className="w-4 h-4 md:w-6 md:h-6 lg:w-8 lg:h-8" aria-label="Стрелка вправо" />
                   <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 skew-x-12" />
                 </button>
                 <div className="flex justify-center gap-2 md:gap-3 lg:gap-4">
                   <button 
                     onClick={() => { playSound('click'); setGameState('PROFILE'); }}
-                    className="flex-1 px-3 py-3 md:py-4 lg:py-5 bg-zinc-900 border border-zinc-800 text-zinc-400 font-bold text-[10px] md:text-lg lg:text-xl uppercase tracking-widest hover:bg-zinc-800 transition-all flex items-center justify-center gap-1.5 md:gap-3 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl"
+                    onTouchStart={() => { playSound('click'); setGameState('PROFILE'); }}
+                    className="flex-1 px-3 py-3 md:py-4 lg:py-5 bg-zinc-900 border border-zinc-800 text-zinc-400 font-bold text-[10px] md:text-lg lg:text-xl uppercase tracking-widest hover:bg-zinc-800 transition-all flex items-center justify-center gap-1.5 md:gap-3 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                    aria-label="Открыть профиль"
                   >
-                    <User className="w-4 h-4 md:w-6 md:h-6 lg:w-7 lg:h-7" />
+                    <User className="w-4 h-4 md:w-6 md:h-6 lg:w-7 lg:h-7" aria-label="Иконка пользователя" />
                     Профиль
                   </button>
                   <button 
                     onClick={() => { playSound('click'); setGameState('GLOSSARY'); }}
-                    className="flex-1 px-3 py-3 md:py-4 lg:py-5 bg-zinc-900 border border-zinc-800 text-zinc-400 font-bold text-[10px] md:text-lg lg:text-xl uppercase tracking-widest hover:bg-zinc-800 transition-all flex items-center justify-center gap-1.5 md:gap-3 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl"
+                    onTouchStart={() => { playSound('click'); setGameState('GLOSSARY'); }}
+                    className="flex-1 px-3 py-3 md:py-4 lg:py-5 bg-zinc-900 border border-zinc-800 text-zinc-400 font-bold text-[10px] md:text-lg lg:text-xl uppercase tracking-widest hover:bg-zinc-800 transition-all flex items-center justify-center gap-1.5 md:gap-3 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                    aria-label="Открыть словарь"
                   >
-                    <Search className="w-4 h-4 md:w-6 md:h-6 lg:w-7 lg:h-7" />
+                    <Search className="w-4 h-4 md:w-6 md:h-6 lg:w-7 lg:h-7" aria-label="Иконка поиска" />
                     Словарь
                   </button>
                 </div>
@@ -746,7 +757,11 @@ function GameContent() {
                   onClick={() => {
                     startInvestigation(true);
                   }}
-                  className="w-full py-3 md:py-5 bg-white text-black font-black text-base md:text-xl uppercase tracking-widest hover:bg-zinc-200 transition-all rounded-2xl shadow-xl active:scale-95 shrink-0"
+                  onTouchStart={() => {
+                    startInvestigation(true);
+                  }}
+                  className="w-full py-3 md:py-5 bg-white text-black font-black text-base md:text-xl uppercase tracking-widest hover:bg-zinc-200 transition-all rounded-2xl shadow-xl active:scale-95 shrink-0 focus:ring-2 focus:ring-white min-h-[44px]"
+                  aria-label="Приступить к работе"
                 >
                   Приступить к работе
                 </button>
@@ -780,9 +795,17 @@ function GameContent() {
                             bgMusicRef.current.play().catch(() => {});
                           }
                         }}
-                        className="p-2.5 bg-zinc-800/80 hover:bg-zinc-700 rounded-full border border-white/10 text-zinc-400 transition-all shadow-lg backdrop-blur-md shrink-0"
+                        onTouchStart={() => {
+                          setUserInteracted(true);
+                          setIsSoundEnabled(!isSoundEnabled);
+                          if (!isSoundEnabled && bgMusicRef.current) {
+                            bgMusicRef.current.play().catch(() => {});
+                          }
+                        }}
+                        className="p-2.5 bg-zinc-800/80 hover:bg-zinc-700 rounded-full border border-white/10 text-zinc-400 transition-all shadow-lg backdrop-blur-md shrink-0 focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                        aria-label={isSoundEnabled ? "Выключить звук" : "Включить звук"}
                       >
-                        {isSoundEnabled ? <Volume2 className="w-4 h-4 lg:w-5 lg:h-5" /> : <VolumeX className="w-4 h-4 lg:w-5 lg:h-5" />}
+                        {isSoundEnabled ? <Volume2 className="w-4 h-4 lg:w-5 lg:h-5" aria-label="Звук включен" /> : <><VolumeX className="w-4 h-4 lg:w-5 lg:h-5" aria-label="Звук выключен" /><span className="text-xs ml-1">Выкл</span></>}
                       </button>
                     </div>
                     <div className="space-y-2 lg:space-y-3">
@@ -836,10 +859,11 @@ function GameContent() {
                   <div className="flex items-center gap-3">
                     <button 
                       onClick={() => setShowExitConfirm(true)}
-                      className="p-2.5 bg-red-500 rounded-full text-white shadow-lg backdrop-blur-md hover:bg-red-600 transition-all"
-                      title="Выход в меню"
+                      onTouchStart={() => setShowExitConfirm(true)}
+                      className="p-2.5 bg-red-500 rounded-full text-white shadow-lg backdrop-blur-md hover:bg-red-600 transition-all focus:ring-2 focus:ring-red-500 min-h-[44px]"
+                      aria-label="Выход в меню"
                     >
-                      <Home className="w-5 h-5" />
+                      <Home className="w-5 h-5" aria-label="Иконка дома" />
                     </button>
                     <button
                       onClick={() => {
@@ -849,9 +873,17 @@ function GameContent() {
                           bgMusicRef.current.play().catch(() => {});
                         }
                       }}
-                      className="p-2.5 bg-zinc-800/80 rounded-full border border-white/10 text-zinc-400 shadow-lg backdrop-blur-md"
+                      onTouchStart={() => {
+                        setUserInteracted(true);
+                        setIsSoundEnabled(!isSoundEnabled);
+                        if (!isSoundEnabled && bgMusicRef.current) {
+                          bgMusicRef.current.play().catch(() => {});
+                        }
+                      }}
+                      className="p-2.5 bg-zinc-800/80 rounded-full border border-white/10 text-zinc-400 shadow-lg backdrop-blur-md focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                      aria-label={isSoundEnabled ? "Выключить звук" : "Включить звук"}
                     >
-                      {isSoundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+                      {isSoundEnabled ? <Volume2 className="w-5 h-5" aria-label="Звук включен" /> : <><VolumeX className="w-5 h-5" aria-label="Звук выключен" /><span className="text-xs ml-1">Выкл</span></>}
                     </button>
                     <div className="text-right">
                       <div className="text-sm font-black text-white font-mono">
@@ -864,30 +896,38 @@ function GameContent() {
                 <div className="flex justify-center gap-2">
                   <button 
                     onClick={() => usePowerUp('magnifier')}
+                    onTouchStart={() => usePowerUp('magnifier')}
                     disabled={powerUps.magnifier === 0 || showHint || isVoicePlaying || scenario.type === ScenarioType.VOICE}
-                    className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-blue-400 disabled:opacity-30"
+                    className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-blue-400 disabled:opacity-30 focus:ring-2 focus:ring-blue-500 min-h-[44px]"
+                    aria-label="Использовать лупу"
                   >
-                    <Search className="w-5 h-5" />
+                    <Search className="w-5 h-5" aria-label="Иконка лупы" />
                   </button>
                   <button 
                     onClick={() => usePowerUp('freeze')}
+                    onTouchStart={() => usePowerUp('freeze')}
                     disabled={powerUps.freeze === 0 || isFrozen || isVoicePlaying}
-                    className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-cyan-400 disabled:opacity-30"
+                    className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-cyan-400 disabled:opacity-30 focus:ring-2 focus:ring-cyan-500 min-h-[44px]"
+                    aria-label="Использовать заморозку"
                   >
-                    <Snowflake className="w-5 h-5" />
+                    <Snowflake className="w-5 h-5" aria-label="Иконка снежинки" />
                   </button>
                   <button 
                     onClick={() => usePowerUp('call')}
+                    onTouchStart={() => usePowerUp('call')}
                     disabled={powerUps.call === 0 || (investigated.sender && investigated.url) || isVoicePlaying}
-                    className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-purple-400 disabled:opacity-30"
+                    className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-purple-400 disabled:opacity-30 focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                    aria-label="Использовать звонок"
                   >
-                    <Radio className="w-5 h-5" />
+                    <Radio className="w-5 h-5" aria-label="Иконка радио" />
                   </button>
                   <button 
                     onClick={() => setShowFAQ(true)}
-                    className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-500"
+                    onTouchStart={() => setShowFAQ(true)}
+                    className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-500 focus:ring-2 focus:ring-zinc-500 min-h-[44px]"
+                    aria-label="Показать FAQ"
                   >
-                    <HelpCircle className="w-5 h-5" />
+                    <HelpCircle className="w-5 h-5" aria-label="Иконка помощи" />
                   </button>
                 </div>
 
@@ -956,9 +996,14 @@ function GameContent() {
                               playSound('click');
                               handlePlayVoiceAudio();
                             }}
-                            className="px-6 py-3 bg-purple-500 hover:bg-purple-400 text-black font-black text-sm md:text-base rounded-2xl shadow-[0_0_30px_rgba(168,85,247,0.5)] flex items-center gap-2 transition-all active:scale-95"
+                            onTouchStart={() => {
+                              playSound('click');
+                              handlePlayVoiceAudio();
+                            }}
+                            className="px-6 py-3 bg-purple-500 hover:bg-purple-400 text-black font-black text-sm md:text-base rounded-2xl shadow-[0_0_30px_rgba(168,85,247,0.5)] flex items-center gap-2 transition-all active:scale-95 focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                            aria-label={voiceAudioFailed ? 'Повторить аудио' : 'Воспроизвести голос'}
                           >
-                            <Volume2 className="w-5 h-5 md:w-6 md:h-6" />
+                            <Volume2 className="w-5 h-5 md:w-6 md:h-6" aria-label="Иконка громкости" />
                             {voiceAudioFailed ? 'Повторить' : 'Воспроизвести голос'}
                           </motion.button>
                         )}
@@ -979,7 +1024,7 @@ function GameContent() {
                             <div className={`text-[10px] md:text-lg font-black truncate tracking-tight ${investigated.sender ? 'text-red-400 underline decoration-red-500/50 underline-offset-4' : 'text-white'}`}>
                               {scenario.sender}
                             </div>
-                            <div className="text-[6px] md:text-[10px] text-zinc-500 uppercase font-black tracking-widest mt-0.5">Отправитель</div>
+                            <div className="text-[6px] md:text-[10px] text-zinc-500 uppercase font-mono">Отправитель</div>
                           </div>
                         </div>
                         
@@ -1023,16 +1068,20 @@ function GameContent() {
                   <div id="choice-buttons" className="p-4 md:p-8 bg-zinc-900/95 border-t border-zinc-800/50 grid grid-cols-2 gap-3 md:gap-5 shrink-0 backdrop-blur-xl">
                     <button 
                       onClick={() => handleChoice(true)}
-                      className="flex flex-col items-center justify-center gap-1.5 md:gap-4 p-3 md:p-6 bg-red-500/10 border border-red-500/30 rounded-2xl md:rounded-[2rem] hover:bg-red-500/20 transition-all group active:scale-95 shadow-lg"
+                      onTouchStart={() => handleChoice(true)}
+                      className="flex flex-col items-center justify-center gap-1.5 md:gap-4 p-3 md:p-6 bg-red-500/10 border border-red-500/30 rounded-2xl md:rounded-[2rem] hover:bg-red-500/20 transition-all group active:scale-95 shadow-lg focus:ring-2 focus:ring-red-500 min-h-[44px]"
+                      aria-label="Выбрать фейк"
                     >
-                      <XCircle className="w-6 h-6 md:w-12 md:h-12 text-red-500 group-hover:scale-110 transition-transform" />
+                      <XCircle className="w-6 h-6 md:w-12 md:h-12 text-red-500 group-hover:scale-110 transition-transform" aria-label="Крестик" />
                       <span className="text-[9px] md:text-lg font-black text-red-500 uppercase tracking-widest">Фейк</span>
                     </button>
                     <button 
                       onClick={() => handleChoice(false)}
-                      className="flex flex-col items-center justify-center gap-1.5 md:gap-4 p-3 md:p-6 bg-purple-500/10 border border-purple-500/30 rounded-2xl md:rounded-[2rem] hover:bg-purple-500/20 transition-all group active:scale-95 shadow-lg"
+                      onTouchStart={() => handleChoice(false)}
+                      className="flex flex-col items-center justify-center gap-1.5 md:gap-4 p-3 md:p-6 bg-purple-500/10 border border-purple-500/30 rounded-2xl md:rounded-[2rem] hover:bg-purple-500/20 transition-all group active:scale-95 shadow-lg focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                      aria-label="Выбрать ок"
                     >
-                      <CheckCircle2 className="w-6 h-6 md:w-12 md:h-12 text-purple-500 group-hover:scale-110 transition-transform" />
+                      <CheckCircle2 className="w-6 h-6 md:w-12 md:h-12 text-purple-500 group-hover:scale-110 transition-transform" aria-label="Галочка" />
                       <span className="text-[9px] md:text-lg font-black text-purple-500 uppercase tracking-widest">Ок</span>
                     </button>
                   </div>
@@ -1045,10 +1094,11 @@ function GameContent() {
                 <div className="bg-zinc-900/60 border border-zinc-800/50 p-4 lg:p-8 rounded-[2rem] lg:rounded-[2.5rem] backdrop-blur-xl space-y-3 lg:space-y-6 shadow-2xl relative group/hud">
                   <button 
                     onClick={() => setShowExitConfirm(true)}
-                    className="absolute -top-3 -right-3 p-3 bg-red-500 text-white rounded-2xl transition-all hover:scale-110 shadow-xl z-10"
-                    title="Выйти в главное меню"
+                    onTouchStart={() => setShowExitConfirm(true)}
+                    className="absolute -top-3 -right-3 p-3 bg-red-500 text-white rounded-2xl transition-all hover:scale-110 shadow-xl z-10 focus:ring-2 focus:ring-red-500 min-h-[44px]"
+                    aria-label="Выйти в главное меню"
                   >
-                    <Home className="w-5 h-5 lg:w-6 lg:h-6" />
+                    <Home className="w-5 h-5 lg:w-6 lg:h-6" aria-label="Иконка дома" />
                   </button>
                   <div className="flex justify-between items-center">
                     <div className="flex gap-1 lg:gap-2">
@@ -1071,33 +1121,39 @@ function GameContent() {
                   <div className="grid grid-cols-1 gap-1.5 lg:gap-3">
                     <button 
                       onClick={() => usePowerUp('magnifier')}
+                      onTouchStart={() => usePowerUp('magnifier')}
                       disabled={powerUps.magnifier === 0 || showHint || isVoicePlaying || scenario.type === ScenarioType.VOICE}
-                      className={`flex items-center justify-between p-2 lg:p-5 rounded-xl lg:rounded-2xl border transition-all ${powerUps.magnifier > 0 && !isVoicePlaying && !showHint && scenario.type !== ScenarioType.VOICE ? 'bg-zinc-950 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
+                      className={`flex items-center justify-between p-2 lg:p-5 rounded-xl lg:rounded-2xl border transition-all focus:ring-2 focus:ring-blue-500 min-h-[44px] ${powerUps.magnifier > 0 && !isVoicePlaying && !showHint && scenario.type !== ScenarioType.VOICE ? 'bg-zinc-950 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
+                      aria-label="Использовать анализ"
                     >
                       <div className="flex items-center gap-2 lg:gap-4">
-                        <Search className="w-4 h-4 lg:w-7 lg:h-7" />
+                        <Search className="w-4 h-4 lg:w-7 lg:h-7" aria-label="Иконка поиска" />
                         <span className="text-[8px] lg:text-base font-black uppercase tracking-tight">Анализ</span>
                       </div>
                       <span className="text-sm lg:text-xl font-black font-mono">{powerUps.magnifier}</span>
                     </button>
                     <button 
                       onClick={() => usePowerUp('freeze')}
+                      onTouchStart={() => usePowerUp('freeze')}
                       disabled={powerUps.freeze === 0 || isFrozen || isVoicePlaying}
-                      className={`flex items-center justify-between p-2 lg:p-5 rounded-xl lg:rounded-2xl border transition-all ${powerUps.freeze > 0 && !isVoicePlaying && !isFrozen ? 'bg-zinc-950 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
+                      className={`flex items-center justify-between p-2 lg:p-5 rounded-xl lg:rounded-2xl border transition-all focus:ring-2 focus:ring-cyan-500 min-h-[44px] ${powerUps.freeze > 0 && !isVoicePlaying && !isFrozen ? 'bg-zinc-950 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
+                      aria-label="Использовать заморозку"
                     >
                       <div className="flex items-center gap-2 lg:gap-4">
-                        <Snowflake className="w-4 h-4 lg:w-7 lg:h-7" />
+                        <Snowflake className="w-4 h-4 lg:w-7 lg:h-7" aria-label="Иконка снежинки" />
                         <span className="text-[8px] lg:text-base font-black uppercase tracking-tight">Заморозка</span>
                       </div>
                       <span className="text-sm lg:text-xl font-black font-mono">{powerUps.freeze}</span>
                     </button>
                     <button 
                       onClick={() => usePowerUp('call')}
+                      onTouchStart={() => usePowerUp('call')}
                       disabled={powerUps.call === 0 || (investigated.sender && investigated.url) || isVoicePlaying}
-                      className={`flex items-center justify-between p-2 lg:p-5 rounded-xl lg:rounded-2xl border transition-all ${powerUps.call > 0 && !isVoicePlaying && !(investigated.sender && investigated.url) ? 'bg-zinc-950 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
+                      className={`flex items-center justify-between p-2 lg:p-5 rounded-xl lg:rounded-2xl border transition-all focus:ring-2 focus:ring-purple-500 min-h-[44px] ${powerUps.call > 0 && !isVoicePlaying && !(investigated.sender && investigated.url) ? 'bg-zinc-950 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
+                      aria-label="Использовать связь"
                     >
                       <div className="flex items-center gap-2 lg:gap-4">
-                        <Radio className="w-4 h-4 lg:w-7 lg:h-7" />
+                        <Radio className="w-4 h-4 lg:w-7 lg:h-7" aria-label="Иконка радио" />
                         <span className="text-[8px] lg:text-base font-black uppercase tracking-tight">Связь</span>
                       </div>
                       <span className="text-sm lg:text-xl font-black font-mono">{powerUps.call}</span>
@@ -1108,7 +1164,7 @@ function GameContent() {
                 {/* Briefing Card */}
                 <div id="briefing-card" className={`p-4 lg:p-6 rounded-[2rem] lg:rounded-[2.5rem] border text-[7px] lg:text-[14px] font-mono leading-relaxed flex-1 min-h-0 overflow-hidden shadow-2xl ${scenario.isSpecialMission ? 'bg-red-500/10 border-red-500/50 text-red-400 animate-pulse' : 'bg-zinc-900/60 border-zinc-800/50 text-zinc-400'}`}>
                   <div className="flex items-center gap-2 lg:gap-3 mb-1 lg:mb-3 shrink-0">
-                    <ShieldAlert className="w-3 h-3 lg:w-5 lg:h-5" />
+                    <ShieldAlert className="w-3 h-3 lg:w-5 lg:h-5" aria-label="Иконка предупреждения" />
                     <span className="font-black uppercase tracking-[0.2em] text-[7px] lg:text-[11px]">Брифинг</span>
                   </div>
                   <div className="flex-1">
@@ -1118,9 +1174,11 @@ function GameContent() {
 
                 <button 
                   onClick={() => setShowFAQ(true)}
-                  className="w-full py-2 lg:py-4 bg-zinc-900/80 border border-zinc-800/50 text-zinc-500 hover:text-white hover:bg-zinc-800 transition-all rounded-[1.2rem] lg:rounded-[1.5rem] flex items-center justify-center gap-2 lg:gap-3 shadow-xl"
+                  onTouchStart={() => setShowFAQ(true)}
+                  className="w-full py-2 lg:py-4 bg-zinc-900/80 border border-zinc-800/50 text-zinc-500 hover:text-white hover:bg-zinc-800 transition-all rounded-[1.2rem] lg:rounded-[1.5rem] flex items-center justify-center gap-2 lg:gap-3 shadow-xl focus:ring-2 focus:ring-zinc-500 min-h-[44px]"
+                  aria-label="Показать помощь"
                 >
-                  <HelpCircle className="w-4 h-4 lg:w-6 lg:h-6" />
+                  <HelpCircle className="w-4 h-4 lg:w-6 lg:h-6" aria-label="Иконка помощи" />
                   <span className="text-[8px] lg:text-sm font-black uppercase tracking-widest">Помощь</span>
                 </button>
               </div>
@@ -1142,7 +1200,7 @@ function GameContent() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-purple-500/20 rounded-xl">
-                      <HelpCircle className="w-6 h-6 text-purple-500" />
+                      <HelpCircle className="w-6 h-6 text-purple-500" aria-label="Иконка помощи" />
                     </div>
                     <h3 className="text-lg md:text-xl font-black uppercase tracking-tight text-white">Обучение</h3>
                   </div>
@@ -1164,7 +1222,16 @@ function GameContent() {
                         setIsTutorialActive(false);
                       }
                     }}
-                    className="w-full py-3 bg-purple-500 text-black font-black text-base uppercase tracking-widest rounded-xl hover:bg-purple-400 transition-all active:scale-95 shadow-lg"
+                    onTouchStart={() => {
+                      playSound('click');
+                      if (tutorialStep < 4) {
+                        setTutorialStep(tutorialStep + 1);
+                      } else {
+                        setIsTutorialActive(false);
+                      }
+                    }}
+                    className="w-full py-3 bg-purple-500 text-black font-black text-base uppercase tracking-widest rounded-xl hover:bg-purple-400 transition-all active:scale-95 shadow-lg focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                    aria-label={tutorialStep < 4 ? 'Понял' : 'Начать работу'}
                   >
                     {tutorialStep < 4 ? 'Понял' : 'Начать работу'}
                   </button>
@@ -1356,7 +1423,7 @@ function GameContent() {
               >
                 <Home className="w-5 h-5 md:w-8 md:h-8" />
               </button>
-              <div className="bg-zinc-900/90 border border-zinc-800 p-4 md:p-8 lg:p-10 rounded-[2rem] md:rounded-[3rem] space-y-4 md:space-y-6 shadow-2xl backdrop-blur-3xl relative w-full max-h-full overflow-hidden flex flex-col">
+              <div className="bg-zinc-900/90 border border-zinc-800 p-4 md:p-8 lg:p-10 rounded-[2rem] md:rounded-[3rem] space-y-4 md:space-y-6 shadow-2xl backdrop-blur-3xl relative w-full max-w-2xl max-h-full overflow-hidden flex flex-col">
                 <div className="absolute top-0 right-0 p-4 md:p-8 opacity-5 pointer-events-none">
                   <Award className="w-16 h-16 md:w-40 md:h-40 lg:w-56 lg:h-56 text-blue-500" />
                 </div>
@@ -1693,9 +1760,7 @@ function GameContent() {
                 </div>
                 <div className="space-y-3">
                   <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter">Полный сброс?</h2>
-                  <p className="text-zinc-400 text-sm md:text-base leading-relaxed">
-                    Вы уверены, что хотите обнулить игру? Все ваши достижения, рекорды и звания будут безвозвратно удалены.
-                  </p>
+                  <p className="text-zinc-400 font-bold">Вы уверены, что хотите обнулить игру? Все ваши достижения, рекорды и звания будут безвозвратно удалены.</p>
                 </div>
                 <div className="grid grid-cols-1 gap-3">
                   <button 

@@ -5,6 +5,8 @@ export enum ScenarioType {
   WEBSITE = 'WEBSITE',
   VOICE = 'VOICE',
   QR = 'QR',
+  DIALOG = 'DIALOG',
+  TRACING = 'TRACING',
 }
 
 export interface Scenario {
@@ -25,6 +27,8 @@ export interface Scenario {
     description: string;
     realExample?: string;
   };
+  dialogTree?: any[]; // For DIALOG type scenarios
+  tracingMap?: any[]; // For TRACING type scenarios
 }
 
 export const SCENARIOS: Scenario[] = [
@@ -434,7 +438,6 @@ export const NEW_SCENARIOS: Scenario[] = [
     type: ScenarioType.VOICE,
     sender: "Голосовое (Сын)",
     content: "[Аудио]: 'Мам, это я. Я в отделении, тут ДТП с моим участием. Нужна срочная компенсация пострадавшему, 2000 рублей. Скинь на карту, потом расскажу!'",
-    audioUrl: "audio/son_fake.mp3",
     isPhishing: true,
     hint: "Мошенники используют дипфейки голоса. Настоящий сын позвонил бы ещё раз.",
     explanation: "Вишинг с дипфейком голоса родственника. Новая схема 2026 года с использованием ИИ для клонирования голоса из соцсетей.",
