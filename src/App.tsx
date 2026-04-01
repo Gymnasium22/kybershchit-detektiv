@@ -536,12 +536,21 @@ function GameContent() {
           playAudioFile(nextScenario.audioUrl);
         }
       } else {
-        playSound('win');
-        if (score > highScore) {
-          setHighScore(score);
-          localStorage.setItem('cybershield_highscore', score.toString());
+        // Проверяем, завершены ли все сценарии основного уровня
+        if (!isNewGamePlus && scenariosList === SCENARIOS) {
+          // Переходим на уровень 2 (NEW_SCENARIOS)
+          playSound('win');
+          setGameState('END');
+          // После этого пользователь нажмет кнопку в END экране
+        } else {
+          // Завершена вся игра (оба уровня)
+          playSound('win');
+          if (score > highScore) {
+            setHighScore(score);
+            localStorage.setItem('cybershield_highscore', score.toString());
+          }
+          setGameState('END');
         }
-        setGameState('END');
       }
     }, 1500);
   }, [currentLevel, playSound, score, highScore, updateStats, playAudioFile, scenariosList, userInteracted, isNewGamePlus, isMobile]);
@@ -804,12 +813,25 @@ function GameContent() {
                 <div className="space-y-3 md:space-y-4 overflow-hidden flex-1 min-h-0">
                   <p className="text-zinc-500 font-mono text-[8px] md:text-xs uppercase tracking-widest shrink-0">_ ИНИЦИАЛИЗАЦИЯ КУРСАНТА...</p>
                   <div className="space-y-2 md:space-y-4 overflow-hidden">
-                    <p className="text-zinc-300 text-xs md:text-lg leading-relaxed font-medium">
-                      Добро пожаловать в Управление «К». В 2026 году киберпреступность стала главной угрозой в Беларуси. Мошенники используют ИИ, дипфейки и поддельные сервисы.
-                    </p>
-                    <p className="text-zinc-300 text-xs md:text-lg leading-relaxed font-medium">
-                      Твоя задача: фильтровать поток данных. У тебя есть 3 единицы «Цифрового иммунитета». Каждая ошибка — это утечка данных граждан.
-                    </p>
+                    {!isNewGamePlus ? (
+                      <>
+                        <p className="text-zinc-300 text-xs md:text-lg leading-relaxed font-medium">
+                          Добро пожаловать в Управление «К». В 2026 году киберпреступность стала главной угрозой в Беларуси. Мошенники используют ИИ, дипфейки и поддельные сервисы.
+                        </p>
+                        <p className="text-zinc-300 text-xs md:text-lg leading-relaxed font-medium">
+                          Твоя задача: фильтровать поток данных. У тебя есть 3 единицы «Цифрового иммунитета». Каждая ошибка — это утечка данных граждан.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-zinc-300 text-xs md:text-lg leading-relaxed font-medium">
+                          Поздравляем! Ты прошел основной курс подготовки. Теперь начинается продвинутый уровень — режим Эксперта.
+                        </p>
+                        <p className="text-zinc-300 text-xs md:text-lg leading-relaxed font-medium">
+                          На этом уровне мошенники используют комбинированные атаки: несколько каналов одновременно, социальную инженерию и адаптивные методы. Будь готов к неожиданному!
+                        </p>
+                      </>
+                    )}
                   </div>
                   <p className="text-purple-500 font-mono text-[8px] md:text-xs uppercase tracking-widest shrink-0">_ ГОТОВ К ЗАДАНИЮ?</p>
                 </div>
@@ -1735,7 +1757,7 @@ function GameContent() {
 
                 <div className="space-y-0.5 md:space-y-2 shrink-0">
                   <h2 className="text-lg md:text-5xl font-black uppercase italic terminal-glow leading-none tracking-tighter text-white drop-shadow-[0_0_20px_rgba(168,85,247,0.6)]">
-                    {health > 0 ? 'Миссия Выполнена' : 'Связь Потеряна'}
+                    {health <= 0 ? 'Связь Потеряна' : isNewGamePlus ? 'Эксперт Кибербезопасности' : 'Миссия Выполнена'}
                   </h2>
                   <div className="flex justify-center gap-4 md:gap-12 pt-0.5 md:pt-4">
                     <div className="text-center">
@@ -1743,7 +1765,7 @@ function GameContent() {
                       <div className="text-[6px] md:text-[10px] uppercase text-zinc-500 font-mono font-bold tracking-[0.15em]">Счет</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-base md:text-4xl font-black text-white">{currentLevel + (health > 0 ? 1 : 0)}</div>
+                      <div className="text-base md:text-4xl font-black text-white">{currentLevel + (health > 0 ? 1 : 0)}{isNewGamePlus && health > 0 ? '+' : ''}</div>
                       <div className="text-[6px] md:text-[10px] uppercase text-zinc-500 font-mono font-bold tracking-[0.15em]">Уровни</div>
                     </div>
                   </div>
@@ -1756,9 +1778,11 @@ function GameContent() {
                   </div>
                   
                   <p className="text-zinc-400 text-[8px] md:text-base leading-relaxed font-medium">
-                    {health > 0 
-                      ? "Вы продемонстрировали выдающиеся навыки кибердетектива. Граждане Беларуси защищены."
-                      : "Цифровой иммунитет сломлен. Мошенники оказались хитрее. Изучите ошибки и попробуйте снова."}
+                    {health <= 0
+                      ? "Цифровой иммунитет сломлен. Мошенники оказались хитрее. Изучите ошибки и попробуйте снова."
+                      : isNewGamePlus
+                      ? "Вы прошли продвинутый уровень подготовки! Навыки кибердетектива достигли профессионального уровня. Граждане Беларуси под надежной защитой."
+                      : "Вы продемонстрировали выдающиеся навыки кибердетектива. Граждане Беларуси защищены."}
                   </p>
 
                   <div className="grid grid-cols-2 gap-2 py-1 md:py-4 border-y border-zinc-800/30">
@@ -1792,18 +1816,48 @@ function GameContent() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-1 w-full max-w-xs md:max-w-md">
-                  <button 
-                    onClick={() => window.location.reload()}
-                    className="w-full py-2 md:py-4 bg-purple-500 text-black font-black uppercase tracking-[0.15em] hover:bg-purple-400 transition-all rounded-xl md:rounded-2xl text-[8px] md:text-base shadow-[0_10px_20px_rgba(168,85,247,0.3)] active:scale-95"
-                  >
-                    Новая смена
-                  </button>
-                  <button 
-                    onClick={() => setGameState('START')}
-                    className="w-full py-2 md:py-4 bg-zinc-900 text-white font-black uppercase tracking-[0.15em] hover:bg-zinc-800 transition-all rounded-xl md:rounded-2xl border border-zinc-800 text-[8px] md:text-base active:scale-95"
-                  >
-                    В главное меню
-                  </button>
+                  {!isNewGamePlus && health > 0 ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          playSound('click');
+                          setIsNewGamePlus(true);
+                          setCurrentLevel(0);
+                          setCombo(1);
+                          setStats({ correct: 0, total: 0 });
+                          setEvidence([]);
+                          setHealth(3);
+                          setTimeLeft(120);
+                          setScore(0);
+                          setGameState('STORY');
+                        }}
+                        className="w-full py-2 md:py-4 bg-purple-500 text-black font-black uppercase tracking-[0.15em] hover:bg-purple-400 transition-all rounded-xl md:rounded-2xl text-[8px] md:text-base shadow-[0_10px_20px_rgba(168,85,247,0.3)] active:scale-95"
+                      >
+                        Уровень 2: Режим Эксперта
+                      </button>
+                      <button
+                        onClick={() => setGameState('START')}
+                        className="w-full py-2 md:py-4 bg-zinc-900 text-white font-black uppercase tracking-[0.15em] hover:bg-zinc-800 transition-all rounded-xl md:rounded-2xl border border-zinc-800 text-[8px] md:text-base active:scale-95"
+                      >
+                        В главное меню
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => window.location.reload()}
+                        className="w-full py-2 md:py-4 bg-purple-500 text-black font-black uppercase tracking-[0.15em] hover:bg-purple-400 transition-all rounded-xl md:rounded-2xl text-[8px] md:text-base shadow-[0_10px_20px_rgba(168,85,247,0.3)] active:scale-95"
+                      >
+                        Новая смена
+                      </button>
+                      <button
+                        onClick={() => setGameState('START')}
+                        className="w-full py-2 md:py-4 bg-zinc-900 text-white font-black uppercase tracking-[0.15em] hover:bg-zinc-800 transition-all rounded-xl md:rounded-2xl border border-zinc-800 text-[8px] md:text-base active:scale-95"
+                      >
+                        В главное меню
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </motion.div>
