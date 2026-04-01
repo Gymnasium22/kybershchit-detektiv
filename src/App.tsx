@@ -479,23 +479,20 @@ function GameContent() {
     playSound('click');
 
     // Накапливаем очки
-    setDialogScore(prev => prev + (choice.points || 0));
-
-    // Добавляем выбор в историю
-    const newHistory = [...dialogHistory, `choice_${choiceId}`];
-    setDialogHistory(newHistory);
+    const newScore = (choice.points || 0);
+    setDialogScore(prev => prev + newScore);
 
     // Переходим на следующий узел
     const nextNodeId = choice.nextNodeId;
-
-    // Проверяем если это финальный узел
     const nextNode = scenario.dialogTree.find((node: any) => node.id === nextNodeId);
+
+    // Проверяем финальное состояние
     if (nextNode) {
       if (nextNode.isCorrect === true) {
         // Успешно выбран правильный путь
         setShowHint(false);
         const points = (100 + Math.floor(timeLeft * 5)) * combo;
-        setScore(s => s + (points + dialogScore + (choice.points || 0)));
+        setScore(s => s + (points + dialogScore + newScore));
         setCombo(c => Math.min(c + 1, 5));
         setLastResult({ correct: true, message: "МАНИПУЛЯЦИЯ ВЫЯВЛЕНА" });
         setEvidence(prev => [...new Set([...prev, `Диалог: ${scenario.sender}`])]);
@@ -507,15 +504,14 @@ function GameContent() {
         startMiniGame(Math.random() > 0.5 ? 'PASSWORD' : 'CABLE');
       } else {
         // Промежуточный узел - продолжаем диалог
+        const newHistory = [...dialogHistory];
+        if (!newHistory.includes(currentNode.id)) {
+          newHistory.push(currentNode.id);
+        }
         newHistory.push(nextNodeId);
         setDialogHistory(newHistory);
         setCurrentDialogNodeId(nextNodeId);
       }
-    } else {
-      // Если узел не найден, переходим по стандартной логике
-      setCurrentDialogNodeId(nextNodeId);
-      newHistory.push(nextNodeId);
-      setDialogHistory(newHistory);
     }
   }, [gameState, scenario, currentDialogNodeId, timeLeft, combo, dialogScore, dialogHistory, playSound, startMiniGame]);
 
@@ -1233,42 +1229,22 @@ function GameContent() {
 
                               // Build dialog history for display
                               const dialogMessages: any[] = [];
-                              let visitedIds = new Set<string>();
 
-                              for (const historyItem of dialogHistory) {
-                                if (historyItem.startsWith('choice_')) {
-                                  // Find the choice and its parent
-                                  const choiceId = historyItem.substring(7);
-                                  for (const node of scenario.dialogTree) {
-                                    if (node.choices) {
-                                      const choice = node.choices.find((c: any) => c.id === choiceId);
-                                      if (choice) {
-                                        dialogMessages.push({
-                                          id: choiceId,
-                                          speaker: 'user',
-                                          text: choice.text,
-                                          points: choice.points
-                                        });
-                                        break;
-                                      }
-                                    }
-                                  }
-                                } else if (!visitedIds.has(historyItem)) {
-                                  const node = scenario.dialogTree.find((n: any) => n.id === historyItem);
-                                  if (node && !node.choices) {
-                                    dialogMessages.push({
-                                      id: node.id,
-                                      speaker: node.speaker,
-                                      text: node.text,
-                                      isCorrect: node.isCorrect
-                                    });
-                                    visitedIds.add(historyItem);
-                                  }
+                              // Add all previous messages from history
+                              for (const historyItemId of dialogHistory) {
+                                const histNode = scenario.dialogTree.find((n: any) => n.id === historyItemId);
+                                if (histNode && histNode.text && !histNode.text.startsWith('Выберите')) {
+                                  dialogMessages.push({
+                                    id: histNode.id,
+                                    speaker: histNode.speaker,
+                                    text: histNode.text,
+                                    isCorrect: histNode.isCorrect
+                                  });
                                 }
                               }
 
-                              // Add current node if it's not in history
-                              if (currentNode && !visitedIds.has(currentNode.id) && !currentNode.choices) {
+                              // Add current node message if it exists and is new
+                              if (currentNode && currentNode.text && !dialogHistory.includes(currentNode.id)) {
                                 dialogMessages.push({
                                   id: currentNode.id,
                                   speaker: currentNode.speaker,
@@ -1292,7 +1268,7 @@ function GameContent() {
                                           initial={{ opacity: 0, y: 10 }}
                                           animate={{ opacity: 1, y: 0 }}
                                           transition={{ duration: 0.3 }}
-                                          className={`flex items-start gap-2 md:gap-3 ${msg.speaker === 'user' ? 'flex-row-reverse' : ''}`}
+                                          className={`flex items-start gap-2 md:gap-3`}
                                         >
                                           <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-black text-white text-sm md:text-lg shrink-0 ${
                                             msg.speaker === 'scammer' ? 'bg-red-500/30 border-2 border-red-500' :
@@ -1301,7 +1277,7 @@ function GameContent() {
                                           }`}>
                                             {msg.speaker === 'scammer' ? '⚠️' : msg.speaker === 'user' ? '🛡️' : 'ℹ️'}
                                           </div>
-                                          <div className={`flex-1 min-w-0 ${msg.speaker === 'user' ? 'text-right' : ''}`}>
+                                          <div className={`flex-1 min-w-0`}>
                                             <h6 className={`font-black text-xs md:text-sm ${
                                               msg.speaker === 'scammer' ? 'text-red-400' :
                                               msg.speaker === 'user' ? 'text-cyan-400' :
@@ -1312,9 +1288,6 @@ function GameContent() {
                                             <p className="text-xs md:text-sm text-zinc-200 leading-relaxed font-medium py-1 break-words">
                                               {msg.text}
                                             </p>
-                                            {msg.points !== undefined && msg.points > 0 && (
-                                              <span className="text-[9px] md:text-xs text-green-400 font-bold">+{msg.points}⭐</span>
-                                            )}
                                             {msg.isCorrect === true && (
                                               <span className="text-[9px] md:text-xs text-green-400 font-bold">✅ ВЫЯВЛЕНО</span>
                                             )}
@@ -1350,7 +1323,7 @@ function GameContent() {
                                       ))}
                                     </div>
                                   ) : currentNode && !currentNode.choices ? (
-                                    <div className={`"p-3 md:p-4 rounded-xl text-center border-2 ${
+                                    <div className={`p-3 md:p-4 rounded-xl text-center border-2 ${
                                       currentNode.isCorrect === true
                                         ? 'bg-green-500/10 border-green-500 text-green-400'
                                         : currentNode.isCorrect === false

@@ -425,30 +425,60 @@ export const NEW_SCENARIOS: Scenario[] = [
     sender: "Чат: 'Поддержка Куфара'",
     content: "Входящий чат от 'kufar_support'. Собеседник предлагает 'верифицировать аккаунт' для безопасной продажи.",
     isPhishing: true,
-    hint: "Настоящая поддержка Куфара не пишет в WhatsApp/Telegram.",
-    explanation: "Мошенники создают копии чатов поддержки в мессенджерах. Цель — выманить данные карты или доступ к аккаунту.",
-    briefing: "Входящий чат. Распознайте мошенника!",
+    hint: "Настоящая поддержка Куфара не пишет в WhatsApp/Telegram первыми. Официально только приложение Куфара!",
+    explanation: "Мошенники создают копии чатов поддержки в мессенджерах. Цель — выманить данные карты или доступ к аккаунту. Используйте официальное приложение!",
+    briefing: "Входящий чат Telegram. Распознайте подделку поддержки!",
     isSpecialMission: true,
     dialogTree: [
-      { id: 'start', speaker: 'scammer', text: "Здравствуйте! Это поддержка Куфара. Мы заметили подозрительную активность на вашем аккаунте. Для защиты нужно пройти верификацию." },
-      { id: 'start_choices', speaker: 'system', text: "Выберите ответ:", choices: [
-        { id: 'd1', text: "Какая активность? У меня всё нормально.", nextNodeId: 'd1_response', points: 30 },
-        { id: 'd2', text: "Как пройти верификацию?", nextNodeId: 'd2_end', points: 0, isRisky: true },
-        { id: 'd3', text: "Я напишу в официальную поддержку через приложение.", nextNodeId: 'd3_win', points: 200, revealsClue: true },
-      ]},
-      { id: 'd1_response', speaker: 'scammer', text: "Кто-то пытался войти в ваш аккаунт из России. Срочно подтвердите личность!" },
-      { id: 'd1_choices', speaker: 'system', text: "Выберите ответ:", choices: [
-        { id: 'd1a', text: "Ой, как подтвердить?", nextNodeId: 'd1a_end', points: 0, isRisky: true },
-        { id: 'd1b', text: "Из какого города IP? Я проверю.", nextNodeId: 'd1b_response', points: 80 },
-      ]},
-      { id: 'd1a_end', speaker: 'system', text: "⚠️ Мошенник отправил ссылку на 'верификацию'. Вы потеряли аккаунт!", isCorrect: false },
-      { id: 'd1b_response', speaker: 'scammer', text: "IP: 185.220.101.45 (Москва). Это точно не вы?", isCorrect: false },
-      { id: 'd2_end', speaker: 'system', text: "⚠️ Вы перешли по ссылке мошенника! Аккаунт украден.", isCorrect: false },
-      { id: 'd3_win', speaker: 'system', text: "✅ Правильно! Мошенник исчез, поняв что вы его раскусили.", isCorrect: true },
+      { id: 'start', speaker: 'scammer', text: "Здравствуйте! Это техподдержка Куфара. Мы заметили подозрительную активность на вашем аккаунте. Для защиты нужно срочно пройти верификацию личности.",
+        choices: [
+          { id: 'd1', text: "Какая активность? Проверю в приложении сам", nextNodeId: 'd1_good', points: 80, revealsClue: true },
+          { id: 'd2', text: "Как это исправить? Помогите!", nextNodeId: 'd2_trap', points: 10, isRisky: true },
+          { id: 'd3', text: "Напишите мне в официальный чат приложения Куфара", nextNodeId: 'd3_win', points: 100, revealsClue: true },
+          { id: 'd4', text: "Дайте ссылку на верификацию", nextNodeId: 'd4_trap', points: 0, isRisky: true },
+        ]
+      },
+      { id: 'd1_good', speaker: 'scammer', text: "Э-э... последний вход из... Москвы. Вы из Минска? Это опасно! Нужна срочная верификация!",
+        choices: [
+          { id: 'd1a', text: "Это географическое определение неточно, но я проверю через OFFICIAL приложение", nextNodeId: 'd1a_win', points: 90, revealsClue: true },
+          { id: 'd1b', text: "О нет! Как защитить аккаунт?", nextNodeId: 'd1b_trap', points: 0, isRisky: true },
+          { id: 'd1c', text: "Дайте номер вашего отдела, я проверю в Куфаре", nextNodeId: 'd1c_good', points: 70, revealsClue: true },
+        ]
+      },
+      { id: 'd1a_win', speaker: 'system', text: "✅ ОТЛИЧНО! Вы не поверили и пошли в официальное приложение. В реальном приложении нет никакой активности из Москвы!", isCorrect: true },
+      { id: 'd1b_trap', speaker: 'scammer', text: "Переходите по ссылке: kufar.by-security.net/verify - вводите пароль и данные карты", isCorrect: false },
+      { id: 'd1c_good', speaker: 'scammer', text: "Номер отдела... э-э... это служба безопасности, номер не указываем. Но я могу помочь...",
+        choices: [
+          { id: 'd1c1', text: "Тогда почему вы не можете даже сказать номер отдела?", nextNodeId: 'd1c1_win', points: 100, revealsClue: true },
+          { id: 'd1c2', text: "Хорошо, помогите через приложение", nextNodeId: 'd1c2_good', points: 60, revealsClue: true },
+        ]
+      },
+      { id: 'd1c1_win', speaker: 'system', text: "✅ ВЫЯВЛЕНО! Мошенник не может предоставить логическое объяснение. Исчез из чата!", isCorrect: true },
+      { id: 'd1c2_good', speaker: 'scammer', text: "Приложение... ну, через приложение нельзя, это внутренний канал связи!", isCorrect: false },
+
+      { id: 'd2_trap', speaker: 'scammer', text: "Очень помогу! Переходите сюда: kufar-secure-verify.pw/auth - вводите пароль от аккаунта",
+        choices: [
+          { id: 'd2a', text: "СТОП! Это явно фишинговый домен! Меня вот в полицию!", nextNodeId: 'd2a_win', points: 100, revealsClue: true },
+          { id: 'd2b', text: "Хорошо, переду", nextNodeId: 'd2b_end', points: 0, isRisky: true },
+        ]
+      },
+      { id: 'd2a_win', speaker: 'system', text: "✅ ПРАВИЛЬНО! Доменное имя kufar-secure-verify.pw - это очевидный фишинг! Мошенник заблокировал вас.", isCorrect: true },
+      { id: 'd2b_end', speaker: 'system', text: "⚠️ ПОПАЛИСЬ! Фишинговый сайт украл ваш пароль и данные карты. Аккаунт потерян!", isCorrect: false },
+
+      { id: 'd3_win', speaker: 'system', text: "✅ ИДЕАЛЬНО! Мошенник не может написать в официальный чат. Он исчез из этого поддельного Telegram-аккаунта!", isCorrect: true },
+
+      { id: 'd4_trap', speaker: 'scammer', text: "Шляходитесь по ссылке: https://kufarapp-verify.com/check - все нужные поля уже там",
+        choices: [
+          { id: 'd4a', text: "Это не .by домен и не из приложения Куфара. Это подделка!", nextNodeId: 'd4a_win', points: 100, revealsClue: true },
+          { id: 'd4b', text: "Переходу и проверяю", nextNodeId: 'd4b_end', points: 0, isRisky: true },
+        ]
+      },
+      { id: 'd4a_win', speaker: 'system', text: "✅ ВЫЯВЛЕНО! Вы правильно заметили: не .by домен, не из приложения! Фишинг раскрыт!", isCorrect: true },
+      { id: 'd4b_end', speaker: 'system', text: "⚠️ ФИШИНГ! Сайт собрал все ваши данные. Аккаунт и карта скомпрометированы!", isCorrect: false },
     ],
     educationalInfo: {
-      title: "Фейковая поддержка маркетплейсов",
-      description: "Куфар, Wildberries, Ozon никогда не пишут первыми в мессенджерах. Все вопросы решайте только через официальное приложение.",
+      title: "Поддельные чаты маркетплейсов",
+      description: "✅ Куфар, Wildberries, Ozon НИКОГДА не пишут первыми в Telegram/WhatsApp\n✅ Все вопросы ТОЛЬКО через официальное приложение\n✅ Проверяйте домены - только .by\n❌ Не переходите по ссылкам из чатов в мессенджерах",
     }
   },
   {
