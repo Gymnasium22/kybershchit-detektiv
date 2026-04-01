@@ -1382,9 +1382,10 @@ function GameContent() {
                         )}
                       </div>
                     ) : (
+                      <div className="bg-zinc-900/80 rounded-[2rem] md:rounded-[3rem] p-4 md:p-6 border border-zinc-800/50 space-y-3 md:space-y-4 shadow-2xl backdrop-blur-sm overflow-hidden flex flex-col max-h-full">
                         <div className="flex items-center gap-2 md:gap-4 border-b border-zinc-800/50 pb-3 md:pb-4 shrink-0">
                           <div className="w-8 h-8 md:w-12 md:h-12 bg-zinc-800/80 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 border border-white/5">
-                            {scenario.type === ScenarioType.EMAIL ? <Mail className="w-4 h-4 md:w-6 md:h-6 text-blue-400" /> : 
+                            {scenario.type === ScenarioType.EMAIL ? <Mail className="w-4 h-4 md:w-6 md:h-6 text-blue-400" /> :
                              scenario.type === ScenarioType.SMS ? <MessageSquare className="w-4 h-4 md:w-6 md:h-6 text-purple-400" /> :
                              <Globe className="w-4 h-4 md:w-6 md:h-6 text-purple-400" />}
                           </div>
@@ -1395,7 +1396,7 @@ function GameContent() {
                             <div className="text-xs md:text-xs lg:text-sm text-zinc-500 uppercase font-mono">Отправитель</div>
                           </div>
                         </div>
-                        
+
                         <div className="text-xs md:text-base text-zinc-200 leading-relaxed break-words font-medium overflow-hidden">
                           {scenario.type === ScenarioType.WEBSITE ? (
                             <div className="space-y-2 md:space-y-4">
