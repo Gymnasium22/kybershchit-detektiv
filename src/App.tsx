@@ -257,6 +257,11 @@ function GameContent() {
       return;
     }
 
+    // Если уже играет, не запускаем новый
+    if (isVoicePlaying) {
+      return;
+    }
+
     stopAudio(); // останавливаем предыдущее воспроизведение
     setVoiceAudioFailed(false);
 
@@ -333,6 +338,7 @@ function GameContent() {
 
   const startInvestigation = useCallback((withTutorial = false) => {
     playSound('click');
+    stopAudio(); // Останавливаем любое текущее аудио
     setGameState('PLAYING');
     setCurrentLevel(0);
     setScore(0);
@@ -364,6 +370,8 @@ function GameContent() {
 
   const handleChoice = useCallback((isPhishing: boolean) => {
     if (gameState !== 'PLAYING') return;
+    
+    stopAudio(); // Останавливаем голосовое сообщение при выборе
     
     const correct = isPhishing === scenario.isPhishing;
     setStats(prev => ({ ...prev, total: prev.total + 1, correct: prev.correct + (correct ? 1 : 0) }));
@@ -688,7 +696,6 @@ function GameContent() {
               <div className="grid grid-cols-1 gap-2 md:gap-3 w-full max-w-xs md:max-w-lg lg:max-w-xl mx-auto shrink-0">
                 <button 
                   onClick={handleStart}
-                  onTouchStart={handleStart}
                   className="group relative overflow-hidden px-6 py-4 md:py-5 lg:py-6 bg-purple-500 text-black font-black text-base md:text-2xl lg:text-3xl uppercase tracking-tighter hover:bg-purple-400 transition-all active:scale-95 flex items-center justify-center gap-2 md:gap-4 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl shadow-[0_20px_50px_rgba(168,85,247,0.3)] focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                   aria-label="Начать игру"
                 >
@@ -755,9 +762,6 @@ function GameContent() {
 
                 <button 
                   onClick={() => {
-                    startInvestigation(true);
-                  }}
-                  onTouchStart={() => {
                     startInvestigation(true);
                   }}
                   className="w-full py-3 md:py-5 bg-white text-black font-black text-base md:text-xl uppercase tracking-widest hover:bg-zinc-200 transition-all rounded-2xl shadow-xl active:scale-95 shrink-0 focus:ring-2 focus:ring-white min-h-[44px]"
@@ -993,10 +997,6 @@ function GameContent() {
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
                             onClick={() => {
-                              playSound('click');
-                              handlePlayVoiceAudio();
-                            }}
-                            onTouchStart={() => {
                               playSound('click');
                               handlePlayVoiceAudio();
                             }}
