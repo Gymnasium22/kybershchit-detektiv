@@ -85,6 +85,9 @@ function GameContent() {
   const [voiceAudioFailed, setVoiceAudioFailed] = useState(false); // Если аудио не запустилось
   const [isNewGamePlus, setIsNewGamePlus] = useState(false); // Режим новой смены после прохождения
   const [isMobile, setIsMobile] = useState(false); // Мобильное устройство
+  const [currentDialogNodeId, setCurrentDialogNodeId] = useState('start'); // Текущий узел диалога
+  const [dialogScore, setDialogScore] = useState(0); // Очки за диалог
+  const [tracingSelectedPath, setTracingSelectedPath] = useState<string[]>([]); // Выбранный путь в трассировке
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const audioHandlersRef = React.useRef<{ onended?: ((this: HTMLAudioElement, ev: Event) => any) | null; onerror?: ((this: HTMLAudioElement, ev: Event) => any) | null }>({});
   const bgMusicRef = React.useRef<HTMLAudioElement | null>(null);
@@ -400,6 +403,9 @@ function GameContent() {
     setInvestigated({ sender: false, url: false });
     setEvidence([]);
     setPowerUps({ magnifier: 3, freeze: 2, call: 1 });
+    setCurrentDialogNodeId('start'); // Сбросить состояние диалога
+    setDialogScore(0); // Сбросить очки диалога
+    setTracingSelectedPath([]); // Сбросить путь трассировки
     if (withTutorial) {
       setIsTutorialActive(true);
       setTutorialStep(0);
@@ -458,6 +464,109 @@ function GameContent() {
     setLastResult({ correct: false, message: "СИСТЕМА СКОМПРОМЕТИРОВАНА" });
     setGameState('FEEDBACK');
   }, [playSound]);
+
+  const handleDialogChoice = useCallback((choiceId: string) => {
+    if (gameState !== 'PLAYING' || !scenario.dialogTree) return;
+
+    const currentNode = scenario.dialogTree.find((node: any) => node.id === currentDialogNodeId);
+    if (!currentNode || !currentNode.choices) return;
+
+    const choice = currentNode.choices.find((c: any) => c.id === choiceId);
+    if (!choice) return;
+
+    playSound('click');
+
+    // Накапливаем очки
+    setDialogScore(prev => prev + (choice.points || 0));
+
+    // Переходим на следующий узел
+    const nextNodeId = choice.nextNodeId;
+    setCurrentDialogNodeId(nextNodeId);
+
+    // Проверяем если это финальный узел
+    const nextNode = scenario.dialogTree.find((node: any) => node.id === nextNodeId);
+    if (nextNode) {
+      if (nextNode.isCorrect === true) {
+        // Успешно выбран правильный путь
+        setShowHint(false);
+        const points = (100 + Math.floor(timeLeft * 5)) * combo;
+        setScore(s => s + (points + dialogScore));
+        setCombo(c => Math.min(c + 1, 5));
+        setLastResult({ correct: true, message: "МАНИПУЛЯЦИЯ ВЫЯВЛЕНА" });
+        setEvidence(prev => [...new Set([...prev, `Диалог: ${scenario.sender}`])]);
+        setGameState('FEEDBACK');
+      } else if (nextNode.isCorrect === false) {
+        // Неправильный путь - штраф
+        playSound('wrong');
+        setCombo(1);
+        startMiniGame(Math.random() > 0.5 ? 'PASSWORD' : 'CABLE');
+      }
+      // Если isCorrect не определен, значит это промежуточный узел - продолжаем диалог
+    }
+  }, [gameState, scenario, currentDialogNodeId, timeLeft, combo, dialogScore, playSound, startMiniGame]);
+
+  const handleTracingNodeClick = useCallback((nodeId: string) => {
+    if (gameState !== 'PLAYING' || !scenario.tracingMap) return;
+
+    const currentPath = [...tracingSelectedPath];
+    const clickedNode = scenario.tracingMap.find((n: any) => n.id === nodeId);
+
+    if (!clickedNode) return;
+
+    // Если первый клик - должен быть start узел
+    if (currentPath.length === 0) {
+      if (clickedNode.type !== 'start') {
+        playSound('wrong');
+        return;
+      }
+      playSound('click');
+      setTracingSelectedPath([nodeId]);
+      return;
+    }
+
+    // Проверяем что предыдущий узел может быть подключен к текущему
+    const lastNodeId = currentPath[currentPath.length - 1];
+    const lastNode = scenario.tracingMap.find((n: any) => n.id === lastNodeId);
+
+    if (!lastNode || !lastNode.connectedTo || !lastNode.connectedTo.includes(nodeId)) {
+      playSound('wrong');
+      return;
+    }
+
+    playSound('click');
+    const newPath = [...currentPath, nodeId];
+    setTracingSelectedPath(newPath);
+
+    // Проверяем если достигли конца
+    if (clickedNode.type === 'end') {
+      // Проверяем правильность пути (должен быть без fake узлов и правильный конец)
+      const isCorrectPath = newPath.every(id => {
+        const node = scenario.tracingMap.find((n: any) => n.id === id);
+        return node && node.type !== 'fake';
+      });
+
+      if (isCorrectPath && clickedNode.type === 'end') {
+        // Вигрыш
+        setShowHint(false);
+        const points = (100 + Math.floor(timeLeft * 5)) * combo;
+        setScore(s => s + points);
+        setCombo(c => Math.min(c + 1, 5));
+        setLastResult({ correct: true, message: "ИСТОЧНИК ВЫЯВЛЕН" });
+        setEvidence(prev => [...new Set([...prev, `Трассировка: ${scenario.sender}`])]);
+        setGameState('FEEDBACK');
+      } else {
+        // Неправильный путь - штраф
+        playSound('wrong');
+        setCombo(1);
+        startMiniGame(Math.random() > 0.5 ? 'PASSWORD' : 'CABLE');
+      }
+    } else if (clickedNode.type === 'fake') {
+      // Попали на fake узел - штраф
+      playSound('wrong');
+      setCombo(1);
+      startMiniGame(Math.random() > 0.5 ? 'PASSWORD' : 'CABLE');
+    }
+  }, [gameState, scenario, tracingSelectedPath, timeLeft, combo, playSound, startMiniGame]);
 
   const usePowerUp = useCallback((type: 'magnifier' | 'freeze' | 'call') => {
     if (powerUps[type] <= 0 || gameState !== 'PLAYING' || isVoicePlaying) return;
@@ -529,6 +638,9 @@ function GameContent() {
         setInvestigated({ sender: false, url: false });
         setIsVoicePlaying(false);
         setVoiceAudioFailed(false); // Сбрасываем флаг ошибки
+        setCurrentDialogNodeId('start'); // Сбросить состояние диалога
+        setDialogScore(0); // Сбросить очки диалога
+        setTracingSelectedPath([]); // Сбросить путь трассировки
         setGameState('PLAYING');
 
         // Автозапуск голосовых только на десктопе — на мобильных пользователь нажмёт кнопку сам
@@ -737,7 +849,7 @@ function GameContent() {
                 <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-black tracking-tighter uppercase italic terminal-glow leading-[0.85] select-none">
                   КиберЩит<br/><span className="text-purple-500">Детектив</span>
                 </h1>
-                <div className="flex items-center justify-center gap-2 md:gap-4 text-zinc-500 font-mono text-[8px] md:text-sm lg:text-base tracking-[0.3em] uppercase">
+                <div className="flex items-center justify-center gap-2 md:gap-4 text-zinc-500 font-mono text-xs md:text-sm lg:text-base tracking-[0.3em] uppercase">
                   <span className="w-1.5 h-1.5 md:w-2 md:h-2 bg-purple-500 rounded-full animate-pulse" />
                   Система активна // РБ 2026
                 </div>
@@ -745,7 +857,7 @@ function GameContent() {
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="text-yellow-500 font-mono text-[9px] md:text-base lg:text-lg font-bold mt-1 md:mt-2 bg-yellow-500/10 py-1 px-4 md:py-1.5 md:px-6 rounded-full border border-yellow-500/20 inline-block"
+                    className="text-yellow-500 font-mono text-sm md:text-base lg:text-lg font-bold mt-1 md:mt-2 bg-yellow-500/10 py-1 px-4 md:py-1.5 md:px-6 rounded-full border border-yellow-500/20 inline-block"
                   >
                     🏆 Рекорд: {highScore}
                   </motion.div>
@@ -770,7 +882,7 @@ function GameContent() {
                   <button 
                     onClick={() => { playSound('click'); setGameState('PROFILE'); }}
                     onTouchStart={() => { playSound('click'); setGameState('PROFILE'); }}
-                    className="flex-1 px-3 py-3 md:py-4 lg:py-5 bg-zinc-900 border border-zinc-800 text-zinc-400 font-bold text-[10px] md:text-lg lg:text-xl uppercase tracking-widest hover:bg-zinc-800 transition-all flex items-center justify-center gap-1.5 md:gap-3 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                    className="flex-1 px-3 py-3 md:py-4 lg:py-5 bg-zinc-900 border border-zinc-800 text-zinc-400 font-bold text-sm md:text-lg lg:text-xl uppercase tracking-widest hover:bg-zinc-800 transition-all flex items-center justify-center gap-1.5 md:gap-3 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                     aria-label="Открыть профиль"
                   >
                     <User className="w-4 h-4 md:w-6 md:h-6 lg:w-7 lg:h-7" aria-label="Иконка пользователя" />
@@ -779,7 +891,7 @@ function GameContent() {
                   <button 
                     onClick={() => { playSound('click'); setGameState('GLOSSARY'); }}
                     onTouchStart={() => { playSound('click'); setGameState('GLOSSARY'); }}
-                    className="flex-1 px-3 py-3 md:py-4 lg:py-5 bg-zinc-900 border border-zinc-800 text-zinc-400 font-bold text-[10px] md:text-lg lg:text-xl uppercase tracking-widest hover:bg-zinc-800 transition-all flex items-center justify-center gap-1.5 md:gap-3 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                    className="flex-1 px-3 py-3 md:py-4 lg:py-5 bg-zinc-900 border border-zinc-800 text-zinc-400 font-bold text-sm md:text-lg lg:text-xl uppercase tracking-widest hover:bg-zinc-800 transition-all flex items-center justify-center gap-1.5 md:gap-3 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                     aria-label="Открыть словарь"
                   >
                     <Search className="w-4 h-4 md:w-6 md:h-6 lg:w-7 lg:h-7" aria-label="Иконка поиска" />
@@ -803,7 +915,7 @@ function GameContent() {
                     <Zap className="w-5 h-5 text-blue-500" />
                   </div>
                   <div>
-                    <div className="text-blue-500 font-black text-[8px] md:text-xs uppercase tracking-widest">Входящий приказ</div>
+                    <div className="text-blue-500 font-black text-xs md:text-xs lg:text-sm uppercase tracking-widest">Входящий приказ</div>
                     <div className="text-white font-black text-base md:text-xl uppercase tracking-tight">ИИ-Помощник «ЩИТ»</div>
                   </div>
                 </div>
@@ -811,7 +923,7 @@ function GameContent() {
                 <div className="h-px bg-zinc-800 w-full shrink-0" />
 
                 <div className="space-y-3 md:space-y-4 overflow-hidden flex-1 min-h-0">
-                  <p className="text-zinc-500 font-mono text-[8px] md:text-xs uppercase tracking-widest shrink-0">_ ИНИЦИАЛИЗАЦИЯ КУРСАНТА...</p>
+                  <p className="text-zinc-500 font-mono text-xs md:text-xs lg:text-sm uppercase tracking-widest shrink-0">_ ИНИЦИАЛИЗАЦИЯ КУРСАНТА...</p>
                   <div className="space-y-2 md:space-y-4 overflow-hidden">
                     {!isNewGamePlus ? (
                       <>
@@ -833,7 +945,7 @@ function GameContent() {
                       </>
                     )}
                   </div>
-                  <p className="text-purple-500 font-mono text-[8px] md:text-xs uppercase tracking-widest shrink-0">_ ГОТОВ К ЗАДАНИЮ?</p>
+                  <p className="text-purple-500 font-mono text-xs md:text-xs lg:text-sm uppercase tracking-widest shrink-0">_ ГОТОВ К ЗАДАНИЮ?</p>
                 </div>
 
                 <button 
@@ -868,8 +980,8 @@ function GameContent() {
                         <User className={`w-5 h-5 lg:w-8 lg:h-8 ${rank.color}`} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-[7px] lg:text-[10px] text-zinc-500 uppercase font-black tracking-[0.2em] mb-0.5">Текущий статус</div>
-                        <div className={`text-[10px] lg:text-lg xl:text-xl font-black uppercase tracking-tight leading-none ${rank.color} drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]`}>{rank.title}</div>
+                        <div className="text-xs lg:text-sm text-zinc-500 uppercase font-black tracking-[0.2em] mb-0.5">Текущий статус</div>
+                        <div className={`text-sm lg:text-lg xl:text-xl font-black uppercase tracking-tight leading-none ${rank.color} drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]`}>{rank.title}</div>
                       </div>
                       <button
                         onClick={() => {
@@ -893,7 +1005,7 @@ function GameContent() {
                       </button>
                     </div>
                     <div className="space-y-2 lg:space-y-3">
-                      <div className="flex justify-between text-[10px] lg:text-sm font-black uppercase tracking-widest">
+                      <div className="flex justify-between text-sm lg:text-base font-black uppercase tracking-widest">
                         <span className="text-zinc-500">Счет</span>
                         <span className="text-white">{score}</span>
                       </div>
@@ -909,7 +1021,7 @@ function GameContent() {
                   </div>
 
                 <div className="bg-zinc-900/60 border border-zinc-800/50 p-4 lg:p-8 rounded-[2rem] lg:rounded-[2.5rem] backdrop-blur-xl flex-1 min-h-0 overflow-hidden flex flex-col shadow-2xl">
-                  <h4 className="text-[8px] lg:text-sm font-black text-zinc-500 uppercase tracking-[0.2em] flex items-center gap-2 lg:gap-3 mb-3 lg:mb-6 shrink-0">
+                  <h4 className="text-xs lg:text-sm font-black text-zinc-500 uppercase tracking-[0.2em] flex items-center gap-2 lg:gap-3 mb-3 lg:mb-6 shrink-0">
                     <Shield className="w-3 h-3 lg:w-5 lg:h-5 text-purple-500" />
                     История операций
                   </h4>
@@ -919,12 +1031,12 @@ function GameContent() {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         key={i} 
-                        className="p-2 lg:p-3 bg-zinc-950/80 rounded-xl lg:rounded-2xl border border-zinc-800/50 text-[8px] lg:text-xs text-zinc-400 font-mono break-all leading-relaxed"
+                        className="p-2 lg:p-3 bg-zinc-950/80 rounded-xl lg:rounded-2xl border border-zinc-800/50 text-xs lg:text-sm text-zinc-400 font-mono break-all leading-relaxed"
                       >
                         {item}
                       </motion.div>
                     ))}
-                    {evidence.length === 0 && <p className="text-[8px] lg:text-xs text-zinc-600 italic font-mono">Нет собранных улик...</p>}
+                    {evidence.length === 0 && <p className="text-xs lg:text-sm text-zinc-600 italic font-mono">Нет собранных улик...</p>}
                   </div>
                 </div>
               </div>
@@ -1015,7 +1127,7 @@ function GameContent() {
                   </button>
                 </div>
 
-                <div id="mobile-briefing" className={`p-2 lg:p-3 rounded-xl border text-[8px] lg:text-[11px] font-mono leading-tight overflow-hidden ${scenario.isSpecialMission ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-zinc-900/50 border-zinc-800 text-zinc-500'}`}>
+                <div id="mobile-briefing" className={`p-2 lg:p-3 rounded-xl border text-xs md:text-sm lg:text-base font-mono leading-tight overflow-hidden ${scenario.isSpecialMission ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-zinc-900/50 border-zinc-800 text-zinc-500'}`}>
                   <p>{scenario.briefing}</p>
                 </div>
               </div>
@@ -1066,11 +1178,11 @@ function GameContent() {
                         </motion.div>
                         <div className="text-center space-y-1 shrink-0">
                           <h4 className="text-white font-black text-base md:text-xl tracking-tight">{scenario.sender}</h4>
-                          <p className={`text-purple-500 text-[8px] md:text-sm font-black uppercase tracking-widest ${isVoicePlaying ? 'animate-pulse' : ''}`}>
+                          <p className={`text-purple-500 text-xs md:text-sm font-black uppercase tracking-widest ${isVoicePlaying ? 'animate-pulse' : ''}`}>
                             {isVoicePlaying ? 'Идет разговор...' : voiceAudioFailed ? 'Аудио не запустилось' : 'Входящий вызов...'}
                           </p>
                         </div>
-                        
+
                         {/* Кнопка ручного запуска — на мобильных показываем ВСЕГДА когда не играет */}
                         {(voiceAudioFailed || (isMobile && !isVoicePlaying && scenario.type === ScenarioType.VOICE)) && (
                           <motion.button
@@ -1093,12 +1205,183 @@ function GameContent() {
                           </motion.button>
                         )}
 
-                        <div className="bg-zinc-900/90 p-3 md:p-4 rounded-2xl border border-zinc-800/50 text-center italic text-[8px] md:text-sm text-zinc-300 leading-relaxed shadow-xl overflow-hidden">
+                        <div className="bg-zinc-900/90 p-3 md:p-4 rounded-2xl border border-zinc-800/50 text-center italic text-xs md:text-sm text-zinc-300 leading-relaxed shadow-xl overflow-hidden">
                           {isVoicePlaying ? "«Слушайте сообщение внимательно...»" : voiceAudioFailed ? "«Нажмите кнопку выше для воспроизведения»" : "«Ожидание ответа...»"}
                         </div>
                       </div>
+                    ) : scenario.type === ScenarioType.DIALOG ? (
+                      <div className="flex-1 flex flex-col overflow-hidden">
+                        {scenario.dialogTree && (
+                          <>
+                            {(() => {
+                              const currentNode = scenario.dialogTree.find((node: any) => node.id === currentDialogNodeId);
+                              return (
+                                <div className="flex-1 flex flex-col space-y-4 overflow-hidden">
+                                  {/* Диалог */}
+                                  <div className="bg-zinc-900/80 rounded-2xl p-4 md:p-6 border border-zinc-800/50 space-y-3 md:space-y-4 shadow-2xl flex-1 min-h-0 overflow-y-auto">
+                                    {currentNode && (
+                                      <>
+                                        <div className="flex items-start gap-3 shrink-0">
+                                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-white text-lg shrink-0 ${
+                                            currentNode.speaker === 'scammer' ? 'bg-red-500/30 border-2 border-red-500' : 'bg-blue-500/30 border-2 border-blue-500'
+                                          }`}>
+                                            {currentNode.speaker === 'scammer' ? '⚠️' : 'ℹ️'}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <h5 className={`font-black text-sm md:text-base ${currentNode.speaker === 'scammer' ? 'text-red-400' : 'text-blue-400'}`}>
+                                              {currentNode.speaker === 'scammer' ? '🦹 Мошенник' : '📲 Система'}
+                                            </h5>
+                                          </div>
+                                        </div>
+                                        <p className="text-xs md:text-sm text-zinc-200 leading-relaxed font-medium py-2">
+                                          {currentNode.text}
+                                        </p>
+                                      </>
+                                    )}
+                                  </div>
+
+                                  {/* Кнопки выбора или информационное сообщение */}
+                                  {currentNode?.choices ? (
+                                    <div className="grid grid-cols-1 gap-2 shrink-0">
+                                      {currentNode.choices.map((choice: any) => (
+                                        <button
+                                          key={choice.id}
+                                          onClick={() => handleDialogChoice(choice.id)}
+                                          onTouchStart={(e) => {
+                                            e.preventDefault();
+                                            handleDialogChoice(choice.id);
+                                          }}
+                                          className={`p-3 md:p-4 rounded-xl border text-xs md:text-sm font-black uppercase tracking-wider transition-all active:scale-95 focus:ring-2 min-h-[44px] ${
+                                            choice.isRisky
+                                              ? 'bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20 focus:ring-orange-500'
+                                              : 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20 focus:ring-green-500'
+                                          }`}
+                                          aria-label={choice.text}
+                                        >
+                                          {choice.text} {choice.points && <span className="text-[10px] md:text-xs">({choice.points}⭐)</span>}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="bg-green-500/10 border-2 border-green-500 p-4 rounded-xl text-center">
+                                      <p className="text-green-400 font-black text-sm md:text-base">✅ Диалог завершен!</p>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </>
+                        )}
+                      </div>
+                    ) : scenario.type === ScenarioType.TRACING ? (
+                      <div className="flex-1 flex flex-col overflow-hidden space-y-4 md:space-y-6">
+                        {scenario.tracingMap && (
+                          <>
+                            {/* SVG Визуализация сети */}
+                            <div className="bg-zinc-900/80 rounded-2xl p-4 border border-zinc-800/50 flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+                              <svg
+                                width="100%"
+                                height="100%"
+                                viewBox="0 0 100 100"
+                                preserveAspectRatio="xMidYMid meet"
+                                className="w-full h-full"
+                              >
+                                {/* Линии соединений */}
+                                {scenario.tracingMap.map((node: any) =>
+                                  node.connectedTo?.map((connectedId: string) => {
+                                    const targetNode = scenario.tracingMap.find((n: any) => n.id === connectedId);
+                                    if (!targetNode) return null;
+
+                                    const isPartOfPath = tracingSelectedPath.includes(node.id) && tracingSelectedPath.includes(connectedId);
+                                    const fromIndex = tracingSelectedPath.indexOf(node.id);
+                                    const toIndex = tracingSelectedPath.indexOf(connectedId);
+                                    const isConsecutive = fromIndex >= 0 && toIndex === fromIndex + 1;
+
+                                    return (
+                                      <line
+                                        key={`${node.id}-${connectedId}`}
+                                        x1={node.x}
+                                        y1={node.y}
+                                        x2={targetNode.x}
+                                        y2={targetNode.y}
+                                        stroke={isConsecutive ? '#10b981' : '#6b7280'}
+                                        strokeWidth={isConsecutive ? 2 : 1}
+                                        strokeDasharray={isPartOfPath ? 'none' : '2,2'}
+                                        opacity={isPartOfPath ? 1 : 0.4}
+                                      />
+                                    );
+                                  })
+                                )}
+
+                                {/* Узлы */}
+                                {scenario.tracingMap.map((node: any) => {
+                                  const isSelected = tracingSelectedPath.includes(node.id);
+                                  const isLastSelected = tracingSelectedPath[tracingSelectedPath.length - 1] === node.id;
+                                  let color = '#6b7280';
+
+                                  if (node.type === 'start') color = '#10b981';
+                                  else if (node.type === 'end') color = '#10b981';
+                                  else if (node.type === 'fake') color = '#ef4444';
+                                  else if (node.type === 'intermediate') color = '#3b82f6';
+
+                                  return (
+                                    <g key={node.id}>
+                                      <circle
+                                        cx={node.x}
+                                        cy={node.y}
+                                        r={isLastSelected ? 4 : 2.5}
+                                        fill={isSelected ? color : 'rgba(107, 114, 128, 0.3)'}
+                                        stroke={color}
+                                        strokeWidth={isSelected ? 1.5 : 0.5}
+                                        opacity={isSelected ? 1 : 0.5}
+                                        style={{ cursor: 'pointer' }}
+                                        onClick={() => handleTracingNodeClick(node.id)}
+                                        onTouchEnd={() => handleTracingNodeClick(node.id)}
+                                      />
+                                      {isSelected && (
+                                        <circle
+                                          cx={node.x}
+                                          cy={node.y}
+                                          r={5}
+                                          fill="none"
+                                          stroke={color}
+                                          strokeWidth={0.8}
+                                          opacity="0.5"
+                                        />
+                                      )}
+                                    </g>
+                                  );
+                                })}
+                              </svg>
+                            </div>
+
+                            {/* Информация и кнопли */}
+                            <div className="space-y-2 shrink-0">
+                              <div className="bg-zinc-900/80 p-3 md:p-4 rounded-xl border border-zinc-800/50">
+                                <p className="text-xs md:text-sm text-zinc-300 font-mono">
+                                  Путь: {tracingSelectedPath.length === 0 ? 'Выберите начало' : `${tracingSelectedPath.join(' → ')}`}
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                {tracingSelectedPath.length > 0 && (
+                                  <button
+                                    onClick={() => setTracingSelectedPath([])}
+                                    onTouchStart={(e) => {
+                                      e.preventDefault();
+                                      setTracingSelectedPath([]);
+                                    }}
+                                    className="flex-1 py-2 px-3 bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs md:text-sm font-black rounded-lg hover:bg-orange-500/20 transition-all active:scale-95 min-h-[44px] flex items-center justify-center"
+                                    aria-label="Сбросить путь"
+                                  >
+                                    Сброс
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     ) : (
-                      <div className="bg-zinc-900/80 rounded-[2rem] md:rounded-[3rem] p-4 md:p-6 border border-zinc-800/50 space-y-3 md:space-y-4 shadow-2xl backdrop-blur-sm overflow-hidden flex flex-col max-h-full">
                         <div className="flex items-center gap-2 md:gap-4 border-b border-zinc-800/50 pb-3 md:pb-4 shrink-0">
                           <div className="w-8 h-8 md:w-12 md:h-12 bg-zinc-800/80 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 border border-white/5">
                             {scenario.type === ScenarioType.EMAIL ? <Mail className="w-4 h-4 md:w-6 md:h-6 text-blue-400" /> : 
@@ -1106,27 +1389,27 @@ function GameContent() {
                              <Globe className="w-4 h-4 md:w-6 md:h-6 text-purple-400" />}
                           </div>
                           <div className="overflow-hidden">
-                            <div className={`text-[10px] md:text-lg font-black truncate tracking-tight ${investigated.sender ? 'text-red-400 underline decoration-red-500/50 underline-offset-4' : 'text-white'}`}>
+                            <div className={`text-sm md:text-lg font-black truncate tracking-tight ${investigated.sender ? 'text-red-400 underline decoration-red-500/50 underline-offset-4' : 'text-white'}`}>
                               {scenario.sender}
                             </div>
-                            <div className="text-[6px] md:text-[10px] text-zinc-500 uppercase font-mono">Отправитель</div>
+                            <div className="text-xs md:text-xs lg:text-sm text-zinc-500 uppercase font-mono">Отправитель</div>
                           </div>
                         </div>
                         
-                        <div className="text-[9px] md:text-base text-zinc-200 leading-relaxed break-words font-medium overflow-hidden">
+                        <div className="text-xs md:text-base text-zinc-200 leading-relaxed break-words font-medium overflow-hidden">
                           {scenario.type === ScenarioType.WEBSITE ? (
                             <div className="space-y-2 md:space-y-4">
-                              <div className="p-2 md:p-4 bg-zinc-950 rounded-xl border border-zinc-800/50 text-[8px] md:text-sm font-mono break-all text-blue-400 leading-tight">
+                              <div className="p-2 md:p-4 bg-zinc-950 rounded-xl border border-zinc-800/50 text-xs md:text-sm font-mono break-all text-blue-400 leading-tight">
                                 {scenario.content}
                               </div>
-                              <div className="text-[6px] md:text-[10px] text-zinc-500 italic font-mono">Нажмите на ссылку для перехода...</div>
+                              <div className="text-xs md:text-xs lg:text-sm text-zinc-500 italic font-mono">Нажмите на ссылку для перехода...</div>
                             </div>
                           ) : scenario.type === ScenarioType.QR ? (
                             <div className="flex flex-col items-center gap-2 md:gap-4">
                               <div className="p-3 md:p-4 bg-white rounded-[1.5rem] shadow-2xl">
                                 <QrCode className="w-20 h-20 md:w-32 md:h-32 text-black" />
                               </div>
-                              <div className="text-[6px] md:text-[10px] text-zinc-500 italic font-mono">Отсканируйте код...</div>
+                              <div className="text-xs md:text-xs lg:text-sm text-zinc-500 italic font-mono">Отсканируйте код...</div>
                             </div>
                           ) : (
                             <div className="max-h-full overflow-hidden">
@@ -1144,7 +1427,7 @@ function GameContent() {
                         className="bg-purple-500/10 border border-purple-500/30 p-4 md:p-6 rounded-2xl flex gap-3 md:gap-4 items-start shrink-0 shadow-xl"
                       >
                         <HelpCircle className="w-4 h-4 md:w-8 md:h-8 text-purple-500 shrink-0 mt-0.5" />
-                        <p className="text-[10px] md:text-lg text-purple-400 font-bold leading-tight">{scenario.hint}</p>
+                        <p className="text-xs md:text-lg text-purple-400 font-bold leading-tight">{scenario.hint}</p>
                       </motion.div>
                     )}
                   </div>
@@ -1161,7 +1444,7 @@ function GameContent() {
                       aria-label="Выбрать фейк"
                     >
                       <XCircle className="w-6 h-6 md:w-12 md:h-12 text-red-500 group-hover:scale-110 transition-transform" aria-label="Крестик" />
-                      <span className="text-[9px] md:text-lg font-black text-red-500 uppercase tracking-widest">Фейк</span>
+                      <span className="text-xs md:text-lg font-black text-red-500 uppercase tracking-widest">Фейк</span>
                     </button>
                     <button 
                       onClick={() => handleChoice(false)}
@@ -1173,7 +1456,7 @@ function GameContent() {
                       aria-label="Выбрать ок"
                     >
                       <CheckCircle2 className="w-6 h-6 md:w-12 md:h-12 text-purple-500 group-hover:scale-110 transition-transform" aria-label="Галочка" />
-                      <span className="text-[9px] md:text-lg font-black text-purple-500 uppercase tracking-widest">Ок</span>
+                      <span className="text-xs md:text-lg font-black text-purple-500 uppercase tracking-widest">Ок</span>
                     </button>
                   </div>
                 </div>
@@ -1202,13 +1485,13 @@ function GameContent() {
                     </div>
                   </div>
                   <div className="flex justify-between items-center border-t border-zinc-800/50 pt-2 lg:pt-4">
-                    <div className="text-[8px] lg:text-xs font-black text-zinc-500 uppercase tracking-widest">Комбо</div>
+                    <div className="text-xs lg:text-xs font-black text-zinc-500 uppercase tracking-widest">Комбо</div>
                     <div className="text-base lg:text-2xl font-black text-yellow-500 italic">x{combo}</div>
                   </div>
                 </div>
 
                 <div id="tools-card" className="bg-zinc-900/60 border border-zinc-800/50 p-4 lg:p-8 rounded-[2rem] lg:rounded-[2.5rem] backdrop-blur-xl space-y-2 lg:space-y-4 shadow-2xl">
-                  <h4 className="text-[8px] lg:text-xs font-black text-zinc-500 uppercase tracking-[0.2em] mb-1 lg:mb-4">Инструменты</h4>
+                  <h4 className="text-xs lg:text-xs font-black text-zinc-500 uppercase tracking-[0.2em] mb-1 lg:mb-4">Инструменты</h4>
                   <div className="grid grid-cols-1 gap-1.5 lg:gap-3">
                     <button 
                       onClick={() => usePowerUp('magnifier')}
@@ -1219,7 +1502,7 @@ function GameContent() {
                     >
                       <div className="flex items-center gap-2 lg:gap-4">
                         <Search className="w-4 h-4 lg:w-7 lg:h-7" aria-label="Иконка поиска" />
-                        <span className="text-[8px] lg:text-base font-black uppercase tracking-tight">Анализ</span>
+                        <span className="text-xs lg:text-base font-black uppercase tracking-tight">Анализ</span>
                       </div>
                       <span className="text-sm lg:text-xl font-black font-mono">{powerUps.magnifier}</span>
                     </button>
@@ -1232,7 +1515,7 @@ function GameContent() {
                     >
                       <div className="flex items-center gap-2 lg:gap-4">
                         <Snowflake className="w-4 h-4 lg:w-7 lg:h-7" aria-label="Иконка снежинки" />
-                        <span className="text-[8px] lg:text-base font-black uppercase tracking-tight">Заморозка</span>
+                        <span className="text-xs lg:text-base font-black uppercase tracking-tight">Заморозка</span>
                       </div>
                       <span className="text-sm lg:text-xl font-black font-mono">{powerUps.freeze}</span>
                     </button>
@@ -1245,7 +1528,7 @@ function GameContent() {
                     >
                       <div className="flex items-center gap-2 lg:gap-4">
                         <Radio className="w-4 h-4 lg:w-7 lg:h-7" aria-label="Иконка радио" />
-                        <span className="text-[8px] lg:text-base font-black uppercase tracking-tight">Связь</span>
+                        <span className="text-xs lg:text-base font-black uppercase tracking-tight">Связь</span>
                       </div>
                       <span className="text-sm lg:text-xl font-black font-mono">{powerUps.call}</span>
                     </button>
@@ -1253,10 +1536,10 @@ function GameContent() {
                 </div>
 
                 {/* Briefing Card */}
-                <div id="briefing-card" className={`p-4 lg:p-6 rounded-[2rem] lg:rounded-[2.5rem] border text-[7px] lg:text-[14px] font-mono leading-relaxed flex-1 min-h-0 overflow-hidden shadow-2xl ${scenario.isSpecialMission ? 'bg-red-500/10 border-red-500/50 text-red-400 animate-pulse' : 'bg-zinc-900/60 border-zinc-800/50 text-zinc-400'}`}>
+                <div id="briefing-card" className={`p-4 lg:p-6 rounded-[2rem] lg:rounded-[2.5rem] border text-xs md:text-sm lg:text-base font-mono leading-relaxed flex-1 min-h-0 overflow-hidden shadow-2xl ${scenario.isSpecialMission ? 'bg-red-500/10 border-red-500/50 text-red-400 animate-pulse' : 'bg-zinc-900/60 border-zinc-800/50 text-zinc-400'}`}>
                   <div className="flex items-center gap-2 lg:gap-3 mb-1 lg:mb-3 shrink-0">
                     <ShieldAlert className="w-3 h-3 lg:w-5 lg:h-5" aria-label="Иконка предупреждения" />
-                    <span className="font-black uppercase tracking-[0.2em] text-[7px] lg:text-[11px]">Брифинг</span>
+                    <span className="font-black uppercase tracking-[0.2em] text-xs md:text-xs lg:text-sm">Брифинг</span>
                   </div>
                   <div className="flex-1">
                     {scenario.briefing}
@@ -1270,7 +1553,7 @@ function GameContent() {
                   aria-label="Показать помощь"
                 >
                   <HelpCircle className="w-4 h-4 lg:w-6 lg:h-6" aria-label="Иконка помощи" />
-                  <span className="text-[8px] lg:text-sm font-black uppercase tracking-widest">Помощь</span>
+                  <span className="text-xs md:text-sm lg:text-base font-black uppercase tracking-widest">Помощь</span>
                 </button>
               </div>
 
@@ -1376,7 +1659,7 @@ function GameContent() {
                 <h2 className="text-base md:text-4xl font-black text-white uppercase tracking-tighter">
                   {miniGameData.type === 'PASSWORD' ? 'ВЗЛОМ СИСТЕМЫ!' : 'УТЕЧКА ДАННЫХ!'}
                 </h2>
-                <p className="text-zinc-400 text-[7px] md:text-lg font-mono bg-red-500/10 py-0.5 px-1.5 md:py-2 md:px-4 rounded-lg border border-red-500/20">
+                <p className="text-zinc-400 text-xs md:text-base lg:text-lg font-mono bg-red-500/10 py-0.5 px-1.5 md:py-2 md:px-4 rounded-lg border border-red-500/20">
                   {miniGameData.type === 'PASSWORD' ? 'ОШИБКА! ВВЕДИТЕ КОД ВОССТАНОВЛЕНИЯ' : 'ОШИБКА! ОБОРВИТЕ СОЕДИНЕНИЕ (3 КЛИКА)'}
                 </p>
               </div>
