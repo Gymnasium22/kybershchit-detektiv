@@ -245,7 +245,7 @@ function GameContent() {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
-      audioRef.current = null;
+      // Не устанавливаем null, чтобы переиспользовать объект
     }
     setIsVoicePlaying(false);
   }, []);
@@ -263,14 +263,17 @@ function GameContent() {
     }
 
     stopAudio(); // останавливаем предыдущее воспроизведение
-    setVoiceAudioFailed(false);
 
     try {
-      const audio = new Audio(url);
-      audio.preload = 'auto';
-      audio.volume = 1.0;
-      audio.load(); // Lazy load
-
+      // Используем один аудио-объект для мобильной оптимизации
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+      }
+      
+      const audio = audioRef.current;
+      audio.src = url;
+      audio.load(); // Важно для мобильных браузеров
+      
       // Дожидаемся, пока аудио можно будет воспроизвести
       await new Promise<void>((resolve, reject) => {
         const canPlay = () => {
@@ -288,7 +291,6 @@ function GameContent() {
         audio.load();
       });
 
-      audioRef.current = audio;
       setIsVoicePlaying(true);
 
       // Приостанавливаем фоновую музыку
@@ -303,7 +305,6 @@ function GameContent() {
 
       audio.onended = () => {
         setIsVoicePlaying(false);
-        audioRef.current = null;
         setVoiceAudioFailed(false);
         if (isSoundEnabled && bgMusicRef.current && bgMusicWasPlaying) {
           bgMusicRef.current.play().catch(() => {});
@@ -314,7 +315,6 @@ function GameContent() {
       audio.onerror = (e) => {
         console.error(`Audio error for ${url}:`, e);
         setIsVoicePlaying(false);
-        audioRef.current = null;
         setVoiceAudioFailed(true);
         if (isSoundEnabled && bgMusicRef.current && bgMusicWasPlaying) {
           bgMusicRef.current.play().catch(() => {});
@@ -323,7 +323,6 @@ function GameContent() {
     } catch (err) {
       console.error('Audio playback failed:', err);
       setIsVoicePlaying(false);
-      audioRef.current = null;
       setVoiceAudioFailed(true);
       
       // На мобильных вешаем обработчики для повторного запуска при следующем взаимодействии
@@ -337,11 +336,18 @@ function GameContent() {
       window.addEventListener('touchstart', enableAudio, { once: true });
       window.addEventListener('keydown', enableAudio, { once: true });
     }
-  }, [stopAudio, isSoundEnabled]);
+  }, [stopAudio, isSoundEnabled, isVoicePlaying]);
 
   const handleStart = useCallback(() => {
     playSound('click');
     setUserInteracted(true);
+    
+    // Разблокировка аудио для мобильных браузеров
+    const dummyAudio = new Audio();
+    dummyAudio.play().then(() => {
+      dummyAudio.pause();
+    }).catch(() => {});
+    
     setGameState('STORY');
     // Убираем setTimeout – аудио запустится сразу после клика
     playAudioFile('audio/briefing.mp3');
