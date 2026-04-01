@@ -86,6 +86,7 @@ function GameContent() {
   const [isNewGamePlus, setIsNewGamePlus] = useState(false); // Режим новой смены после прохождения
   const [isMobile, setIsMobile] = useState(false); // Мобильное устройство
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const audioHandlersRef = React.useRef<{ onended?: ((this: HTMLAudioElement, ev: Event) => any) | null; onerror?: ((this: HTMLAudioElement, ev: Event) => any) | null }>({});
   const bgMusicRef = React.useRef<HTMLAudioElement | null>(null);
 
   // Определяем мобильное устройство
@@ -245,7 +246,14 @@ function GameContent() {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
-      // Не устанавливаем null, чтобы переиспользовать объект
+      // Удаляем обработчики
+      if (audioHandlersRef.current.onended) {
+        audioRef.current.removeEventListener('ended', audioHandlersRef.current.onended);
+      }
+      if (audioHandlersRef.current.onerror) {
+        audioRef.current.removeEventListener('error', audioHandlersRef.current.onerror);
+      }
+      audioHandlersRef.current = {};
     }
     setIsVoicePlaying(false);
   }, []);
@@ -254,11 +262,6 @@ function GameContent() {
     // Если звук выключен, не пытаемся играть
     if (!isSoundEnabled) {
       setVoiceAudioFailed(true);
-      return;
-    }
-
-    // Если уже играет, не запускаем новый
-    if (isVoicePlaying) {
       return;
     }
 
@@ -271,26 +274,22 @@ function GameContent() {
       }
       
       const audio = audioRef.current;
-      audio.src = url;
-      audio.load(); // Важно для мобильных браузеров
       
-      // Дожидаемся, пока аудио можно будет воспроизвести
-      await new Promise<void>((resolve, reject) => {
-        const canPlay = () => {
-          audio.removeEventListener('canplaythrough', canPlay);
-          audio.removeEventListener('error', reject);
-          resolve();
-        };
-        const errorHandler = (e: Event) => {
-          audio.removeEventListener('canplaythrough', canPlay);
-          audio.removeEventListener('error', errorHandler);
-          reject(e);
-        };
-        audio.addEventListener('canplaythrough', canPlay, { once: true });
-        audio.addEventListener('error', errorHandler, { once: true });
-        audio.load();
-      });
-
+      // Очищаем старые обработчики перед переиспользованием
+      if (audioHandlersRef.current.onended) {
+        audio.removeEventListener('ended', audioHandlersRef.current.onended);
+      }
+      if (audioHandlersRef.current.onerror) {
+        audio.removeEventListener('error', audioHandlersRef.current.onerror);
+      }
+      audioHandlersRef.current = {};
+      
+      // Сбрасываем состояние перед загрузкой нового источника
+      audio.currentTime = 0;
+      audio.src = url;
+      audio.currentTime = 0; // После смены src нужно сбросить позицию
+      audio.volume = 1.0;
+      
       setIsVoicePlaying(true);
 
       // Приостанавливаем фоновую музыку
@@ -299,11 +298,39 @@ function GameContent() {
         bgMusicWasPlaying = true;
         bgMusicRef.current.pause();
       }
+      
+      // Дожидаемся, пока аудио будет готово к воспроизведению
+      await new Promise<void>((resolve, reject) => {
+        let resolved = false;
+        const canPlay = () => {
+          if (!resolved) {
+            resolved = true;
+            audio.removeEventListener('canplaythrough', canPlay);
+            audio.removeEventListener('error', errorHandler);
+            resolve();
+          }
+        };
+        const errorHandler = (e: Event) => {
+          if (!resolved) {
+            resolved = true;
+            audio.removeEventListener('canplaythrough', canPlay);
+            audio.removeEventListener('error', errorHandler);
+            reject(e);
+          }
+        };
+        audio.addEventListener('canplaythrough', canPlay, { once: true });
+        audio.addEventListener('error', errorHandler, { once: true });
+        audio.load();
+      });
 
       // Запускаем воспроизведение
-      await audio.play();
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        await playPromise;
+      }
 
-      audio.onended = () => {
+      // Устанавливаем новые обработчики после успешного запуска
+      const onended = () => {
         setIsVoicePlaying(false);
         setVoiceAudioFailed(false);
         if (isSoundEnabled && bgMusicRef.current && bgMusicWasPlaying) {
@@ -312,7 +339,7 @@ function GameContent() {
         if (onEnd) onEnd();
       };
 
-      audio.onerror = (e) => {
+      const onerror = (e: Event) => {
         console.error(`Audio error for ${url}:`, e);
         setIsVoicePlaying(false);
         setVoiceAudioFailed(true);
@@ -320,6 +347,12 @@ function GameContent() {
           bgMusicRef.current.play().catch(() => {});
         }
       };
+
+      audio.addEventListener('ended', onended);
+      audio.addEventListener('error', onerror);
+      
+      // Сохраняем ссылки на обработчики для удаления позже
+      audioHandlersRef.current = { onended, onerror };
     } catch (err) {
       console.error('Audio playback failed:', err);
       setIsVoicePlaying(false);
@@ -336,7 +369,7 @@ function GameContent() {
       window.addEventListener('touchstart', enableAudio, { once: true });
       window.addEventListener('keydown', enableAudio, { once: true });
     }
-  }, [stopAudio, isSoundEnabled, isVoicePlaying]);
+  }, [stopAudio, isSoundEnabled]);
 
   const handleStart = useCallback(() => {
     playSound('click');
