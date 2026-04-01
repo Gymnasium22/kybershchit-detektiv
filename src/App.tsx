@@ -325,6 +325,17 @@ function GameContent() {
       setIsVoicePlaying(false);
       audioRef.current = null;
       setVoiceAudioFailed(true);
+      
+      // На мобильных вешаем обработчики для повторного запуска при следующем взаимодействии
+      const enableAudio = () => {
+        playAudioFile(url, onEnd).catch(() => {});
+        window.removeEventListener('click', enableAudio);
+        window.removeEventListener('touchstart', enableAudio);
+        window.removeEventListener('keydown', enableAudio);
+      };
+      window.addEventListener('click', enableAudio, { once: true });
+      window.addEventListener('touchstart', enableAudio, { once: true });
+      window.addEventListener('keydown', enableAudio, { once: true });
     }
   }, [stopAudio, isSoundEnabled]);
 
@@ -696,6 +707,10 @@ function GameContent() {
               <div className="grid grid-cols-1 gap-2 md:gap-3 w-full max-w-xs md:max-w-lg lg:max-w-xl mx-auto shrink-0">
                 <button 
                   onClick={handleStart}
+                  onTouchStart={(e) => {
+                    e.preventDefault();
+                    handleStart();
+                  }}
                   className="group relative overflow-hidden px-6 py-4 md:py-5 lg:py-6 bg-purple-500 text-black font-black text-base md:text-2xl lg:text-3xl uppercase tracking-tighter hover:bg-purple-400 transition-all active:scale-95 flex items-center justify-center gap-2 md:gap-4 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl shadow-[0_20px_50px_rgba(168,85,247,0.3)] focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                   aria-label="Начать игру"
                 >
@@ -762,6 +777,10 @@ function GameContent() {
 
                 <button 
                   onClick={() => {
+                    startInvestigation(true);
+                  }}
+                  onTouchStart={(e) => {
+                    e.preventDefault();
                     startInvestigation(true);
                   }}
                   className="w-full py-3 md:py-5 bg-white text-black font-black text-base md:text-xl uppercase tracking-widest hover:bg-zinc-200 transition-all rounded-2xl shadow-xl active:scale-95 shrink-0 focus:ring-2 focus:ring-white min-h-[44px]"
@@ -1000,6 +1019,11 @@ function GameContent() {
                               playSound('click');
                               handlePlayVoiceAudio();
                             }}
+                            onTouchStart={(e) => {
+                              e.preventDefault();
+                              playSound('click');
+                              handlePlayVoiceAudio();
+                            }}
                             className="px-6 py-3 bg-purple-500 hover:bg-purple-400 text-black font-black text-sm md:text-base rounded-2xl shadow-[0_0_30px_rgba(168,85,247,0.5)] flex items-center gap-2 transition-all active:scale-95 focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                             aria-label={voiceAudioFailed ? 'Повторить аудио' : 'Воспроизвести голос'}
                           >
@@ -1068,7 +1092,10 @@ function GameContent() {
                   <div id="choice-buttons" className="p-4 md:p-8 bg-zinc-900/95 border-t border-zinc-800/50 grid grid-cols-2 gap-3 md:gap-5 shrink-0 backdrop-blur-xl">
                     <button 
                       onClick={() => handleChoice(true)}
-                      onTouchStart={() => handleChoice(true)}
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                        handleChoice(true);
+                      }}
                       className="flex flex-col items-center justify-center gap-1.5 md:gap-4 p-3 md:p-6 bg-red-500/10 border border-red-500/30 rounded-2xl md:rounded-[2rem] hover:bg-red-500/20 transition-all group active:scale-95 shadow-lg focus:ring-2 focus:ring-red-500 min-h-[44px]"
                       aria-label="Выбрать фейк"
                     >
@@ -1077,7 +1104,10 @@ function GameContent() {
                     </button>
                     <button 
                       onClick={() => handleChoice(false)}
-                      onTouchStart={() => handleChoice(false)}
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                        handleChoice(false);
+                      }}
                       className="flex flex-col items-center justify-center gap-1.5 md:gap-4 p-3 md:p-6 bg-purple-500/10 border border-purple-500/30 rounded-2xl md:rounded-[2rem] hover:bg-purple-500/20 transition-all group active:scale-95 shadow-lg focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                       aria-label="Выбрать ок"
                     >
