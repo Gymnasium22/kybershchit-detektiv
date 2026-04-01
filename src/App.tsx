@@ -86,7 +86,8 @@ function GameContent() {
   const [isNewGamePlus, setIsNewGamePlus] = useState(false); // Режим новой смены после прохождения
   const [isMobile, setIsMobile] = useState(false); // Мобильное устройство
   const [currentDialogNodeId, setCurrentDialogNodeId] = useState('start'); // Текущий узел диалога
-  const [dialogHistory, setDialogHistory] = useState<string[]>(['start']); // История узлов диалога
+  const [dialogHistory, setDialogHistory] = useState<string[]>([]); // История узлов диалога
+  const [userResponses, setUserResponses] = useState<{nodeId: string; text: string}[]>([]); // Ответы пользователя в диалоге
   const [dialogScore, setDialogScore] = useState(0); // Очки за диалог
   const [tracingSelectedPath, setTracingSelectedPath] = useState<string[]>([]); // Выбранный путь в трассировке
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
@@ -405,7 +406,8 @@ function GameContent() {
     setEvidence([]);
     setPowerUps({ magnifier: 3, freeze: 2, call: 1 });
     setCurrentDialogNodeId('start'); // Сбросить состояние диалога
-    setDialogHistory(['start']); // Сбросить историю диалога
+    setDialogHistory([]); // Сбросить историю диалога
+    setUserResponses([]); // Сбросить ответы пользователя
     setDialogScore(0); // Сбросить очки диалога
     setTracingSelectedPath([]); // Сбросить путь трассировки
     if (withTutorial) {
@@ -485,6 +487,9 @@ function GameContent() {
     // Переходим на следующий узел
     const nextNodeId = choice.nextNodeId;
     const nextNode = scenario.dialogTree.find((node: any) => node.id === nextNodeId);
+
+    // Добавляем ответ пользователя
+    setUserResponses(prev => [...prev, { nodeId: currentNode.id, text: choice.text }]);
 
     // Проверяем финальное состояние
     if (nextNode) {
@@ -1227,23 +1232,36 @@ function GameContent() {
                             {(() => {
                               const currentNode = scenario.dialogTree.find((node: any) => node.id === currentDialogNodeId);
 
-                              // Build dialog history for display
+                              // Build dialog history for display - интерлив ответов пользователя и мошенника
                               const dialogMessages: any[] = [];
 
-                              // Add all previous messages from history
-                              for (const historyItemId of dialogHistory) {
+                              // Проходим по истории и добавляем сообщения с ответами пользователя
+                              for (let i = 0; i < dialogHistory.length; i++) {
+                                const historyItemId = dialogHistory[i];
                                 const histNode = scenario.dialogTree.find((n: any) => n.id === historyItemId);
+
                                 if (histNode && histNode.text && !histNode.text.startsWith('Выберите')) {
+                                  // Добавляем сообщение мошенника/системы
                                   dialogMessages.push({
                                     id: histNode.id,
                                     speaker: histNode.speaker,
                                     text: histNode.text,
                                     isCorrect: histNode.isCorrect
                                   });
+
+                                  // Проверяем, есть ли ответ пользователя для этого узла
+                                  const userResponse = userResponses.find((r: any) => r.nodeId === historyItemId);
+                                  if (userResponse) {
+                                    dialogMessages.push({
+                                      id: `user-${historyItemId}`,
+                                      speaker: 'user',
+                                      text: userResponse.text
+                                    });
+                                  }
                                 }
                               }
 
-                              // Add current node message if it exists and is new
+                              // Добавляем текущее сообщение если оно новое
                               if (currentNode && currentNode.text && !dialogHistory.includes(currentNode.id)) {
                                 dialogMessages.push({
                                   id: currentNode.id,
@@ -1254,11 +1272,11 @@ function GameContent() {
                               }
 
                               return (
-                                <div className="flex-1 flex flex-col space-y-2 md:space-y-3 overflow-hidden">
+                                <div className="flex-1 flex flex-col space-y-2 overflow-hidden">
                                   {/* Диалог - история сообщений */}
-                                  <div className="bg-zinc-900/80 rounded-2xl p-3 md:p-4 border border-zinc-800/50 space-y-2 md:space-y-3 shadow-2xl flex-1 min-h-0 overflow-y-auto">
+                                  <div className="bg-zinc-900/90 rounded-xl p-2.5 md:p-3 border border-zinc-800 space-y-1.5 shadow-2xl flex-1 min-h-0 overflow-y-auto">
                                     {dialogMessages.length === 0 ? (
-                                      <div className="text-center text-zinc-400 text-xs md:text-sm py-4">
+                                      <div className="text-center text-zinc-500 text-xs py-3">
                                         💬 Диалог начинается...
                                       </div>
                                     ) : (
@@ -1268,32 +1286,26 @@ function GameContent() {
                                           initial={{ opacity: 0, y: 10 }}
                                           animate={{ opacity: 1, y: 0 }}
                                           transition={{ duration: 0.3 }}
-                                          className={`flex items-start gap-2 md:gap-3`}
+                                          className={`flex items-start gap-1.5 md:gap-2`}
                                         >
-                                          <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-black text-white text-sm md:text-lg shrink-0 ${
-                                            msg.speaker === 'scammer' ? 'bg-red-500/30 border-2 border-red-500' :
-                                            msg.speaker === 'user' ? 'bg-cyan-500/30 border-2 border-cyan-500' :
-                                            'bg-blue-500/30 border-2 border-blue-500'
+                                          <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-black text-white text-xs md:text-sm shrink-0 ${
+                                            msg.speaker === 'scammer' ? 'bg-red-500/40 border border-red-500/50' :
+                                            msg.speaker === 'user' ? 'bg-cyan-500/40 border border-cyan-500/50' :
+                                            'bg-zinc-600/60 border border-zinc-500/50'
                                           }`}>
-                                            {msg.speaker === 'scammer' ? '⚠️' : msg.speaker === 'user' ? '🛡️' : 'ℹ️'}
+                                            {msg.speaker === 'scammer' ? '👤' : msg.speaker === 'user' ? '🛡️' : 'ℹ️'}
                                           </div>
                                           <div className={`flex-1 min-w-0`}>
-                                            <h6 className={`font-black text-xs md:text-sm ${
-                                              msg.speaker === 'scammer' ? 'text-red-400' :
-                                              msg.speaker === 'user' ? 'text-cyan-400' :
-                                              'text-blue-400'
+                                            <h6 className={`font-semibold text-xs md:text-xs ${
+                                              msg.speaker === 'scammer' ? 'text-red-300' :
+                                              msg.speaker === 'user' ? 'text-cyan-300' :
+                                              'text-zinc-400'
                                             }`}>
-                                              {msg.speaker === 'scammer' ? '🦹 Мошенник' : msg.speaker === 'user' ? '👤 Вы' : '🔔 Система'}
+                                              {msg.speaker === 'scammer' ? 'Мошенник' : msg.speaker === 'user' ? 'Вы' : 'Система'}
                                             </h6>
-                                            <p className="text-xs md:text-sm text-zinc-200 leading-relaxed font-medium py-1 break-words">
+                                            <p className="text-xs md:text-xs text-zinc-100 leading-snug py-0.5 break-words">
                                               {msg.text}
                                             </p>
-                                            {msg.isCorrect === true && (
-                                              <span className="text-[9px] md:text-xs text-green-400 font-bold">✅ ВЫЯВЛЕНО</span>
-                                            )}
-                                            {msg.isCorrect === false && (
-                                              <span className="text-[9px] md:text-xs text-red-400 font-bold">❌ ПОПАЛИСЬ</span>
-                                            )}
                                           </div>
                                         </motion.div>
                                       ))
@@ -1302,7 +1314,7 @@ function GameContent() {
 
                                   {/* Кнопки выбора или информационное сообщение */}
                                   {currentNode?.choices ? (
-                                    <div className="grid grid-cols-1 gap-2 shrink-0">
+                                    <div className="grid grid-cols-1 gap-1.5 shrink-0">
                                       {currentNode.choices.map((choice: any) => (
                                         <button
                                           key={choice.id}
@@ -1311,14 +1323,10 @@ function GameContent() {
                                             e.preventDefault();
                                             handleDialogChoice(choice.id);
                                           }}
-                                          className={`p-2 md:p-3 rounded-xl border text-xs md:text-sm font-black uppercase tracking-wider transition-all active:scale-95 focus:ring-2 min-h-[44px] ${
-                                            choice.isRisky
-                                              ? 'bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20 focus:ring-orange-500'
-                                              : 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20 focus:ring-green-500'
-                                          }`}
+                                          className="p-2.5 md:p-3 rounded-lg border border-zinc-700 text-xs md:text-sm bg-zinc-800/60 text-zinc-100 hover:bg-zinc-700/60 transition-all active:scale-95 focus:ring-2 focus:ring-blue-500 min-h-[40px] text-left"
                                           aria-label={choice.text}
                                         >
-                                          {choice.text} {choice.points && <span className="text-[9px] md:text-xs">({choice.points}⭐)</span>}
+                                          {choice.text}
                                         </button>
                                       ))}
                                     </div>

@@ -301,58 +301,26 @@ export const NEW_SCENARIOS: Scenario[] = [
     briefing: "Входящий чат в Telegram/WhatsApp. Требуется распознать манипуляции и вывести мошенника на чистую воду.",
     isSpecialMission: true,
     dialogTree: [
-      { id: 'start', speaker: 'scammer', text: "Здравствуйте! Это служба безопасности ЕРИП. Зафиксирована задолженность по коммунальным услугам в размере 450 BYN. Необходимо срочно погасить, иначе передадим дело приставам и заблокируем ваш аккаунт!" },
-      { id: 'start', speaker: 'system', text: "Выберите ответ:", choices: [
-        { id: 'q1', text: "У вас точно правильный номер? Какой мой адрес?", nextNodeId: 'q1_resp', points: 60, revealsClue: true },
-        { id: 'q2', text: "Пришлите ссылку на оплату в личный кабинет", nextNodeId: 'q2_resp', points: 20, isRisky: true },
-        { id: 'q3', text: "Я ничего не должен, это мошенничество!", nextNodeId: 'q3_resp', points: 40 },
-        { id: 'q4', text: "Какой номер вашей компании? Я проверю в ЕРИП", nextNodeId: 'q4_resp', points: 80, revealsClue: true },
+      { id: 'start', speaker: 'scammer', text: "Здравствуйте! Служба безопасности ЕРИП. Задолженность 450 BYN - срочно погасьте!", choices: [
+        { id: 'c1', text: "Какая задолженность?", nextNodeId: 'c1_resp', points: 50 },
+        { id: 'c2', text: "Пришлите ссылку оплаты", nextNodeId: 'c2_trap', points: 0, isRisky: true },
+        { id: 'c3', text: "Номер договора!", nextNodeId: 'c3_resp', points: 80, revealsClue: true },
       ]},
-      { id: 'q1_resp', speaker: 'scammer', text: "С адресом всё ясно... м-м... ул. Ленина? Или Октябрьская? Мы видим несколько счетов на вашем имени из разных адресов!" },
-      { id: 'q1_resp', speaker: 'system', text: "Следующий ход?", choices: [
-        { id: 'q1a', text: "Это помощь! У вас украли мои данные?", nextNodeId: 'q1a_trap', points: 10, isRisky: true },
-        { id: 'q1b', text: "Дайте номер счета, я проверю сам в приложении", nextNodeId: 'q1b_good', points: 70, revealsClue: true },
-        { id: 'q1c', text: "Позовите реального оператора, заблокирую чат", nextNodeId: 'q1c_win', points: 90, revealsClue: true },
+      { id: 'c1_resp', speaker: 'scammer', text: "Может другой адрес? Видим счета на вашем имени везде!", choices: [
+        { id: 'c1a', text: "Помогите!", nextNodeId: 'c1a_trap', points: 10, isRisky: true },
+        { id: 'c1b', text: "Номер договора проверю", nextNodeId: 'c1b_win', points: 80, revealsClue: true },
       ]},
-      { id: 'q1a_trap', speaker: 'scammer', text: "Да, нужна срочная защита! Перейдите по ссылке и введите пароль от банка для верификации: erip-security.by/verify" },
-      { id: 'q1a_trap', speaker: 'system', text: "⚠️ ЛОВУШКА! Вы попались на фишинговый сайт!", isCorrect: false },
-      { id: 'q1b_good', speaker: 'scammer', text: "Э-э... номер счета это... 1234-5678-9... Подождите, давайте по номеру договора!" },
-      { id: 'q1b_good', speaker: 'system', text: "💡 Мошенник начинает запутываться! Продолжайте проверку.", choices: [
-        { id: 'q1b1', text: "СТОП! Назовите номер договора или я в полицию", nextNodeId: 'q1b_win', points: 100, revealsClue: true },
-        { id: 'q1b2', text: "Хорошо, слушаю", nextNodeId: 'q1b_bad', points: 0, isRisky: true },
-      ]},
-      { id: 'q1b_win', speaker: 'system', text: "✅ ВЫЯВЛЕНО! Мошенник не знал номер договора и исчез из чата!", isCorrect: true },
-      { id: 'q1b_bad', speaker: 'scammer', text: "Номер договора это... переводим вас на оплату сейчас... ПЕРЕЙДИТЕ ПО ССЫЛКЕ БЫСТРЕЕ!", isCorrect: false },
-      { id: 'q1c_win', speaker: 'system', text: "✅ ОТЛИЧНО! Мошенник испугался претензии и заблокировал вас первым. Это явный знак жуликов!", isCorrect: true },
+      { id: 'c1a_trap', speaker: 'scammer', text: "Перейдите erip-secure.by", isCorrect: false },
+      { id: 'c1b_win', speaker: 'system', text: "✅ Мошенник не знает номер договора! Выявлено!", isCorrect: true },
 
-      { id: 'q2_resp', speaker: 'scammer', text: "Ссылка уже в чате: erip.by.secure-check.net/pay2026 - вводите данные карты и всё будет ОК!" },
-      { id: 'q2_resp', speaker: 'system', text: "⚠️ ФИШИНГОВЫЙ САЙТ! Реальный ЕРИП никогда не пишет ссылки в мессенджеры!", isCorrect: false },
+      { id: 'c2_trap', speaker: 'scammer', text: "Платите на erip-pay-now.com", isCorrect: false },
 
-      { id: 'q3_resp', speaker: 'scammer', text: "Не кричите, это очень дейсвтительно! На вас подана исковая претензия в суд. Вы получите штраф + 50% комиссия за просрочку!" },
-      { id: 'q3_resp', speaker: 'system', text: "Как реагировать?", choices: [
-        { id: 'q3a', text: "Хорошо, давайте разбираться. Как платить?", nextNodeId: 'q3a_end', points: 20, isRisky: true },
-        { id: 'q3b', text: "Позвоню прямо в ЕРИП по горячей линии 153", nextNodeId: 'q3b_win', points: 100, revealsClue: true },
-        { id: 'q3c', text: "Исковую претензию суд отправляет по почте, не в чат!", nextNodeId: 'q3c_good', points: 70, revealsClue: true },
+      { id: 'c3_resp', speaker: 'scammer', text: "Номер? Это внутренняя система...", choices: [
+        { id: 'c3a', text: "Если не можете - это мошенничество!", nextNodeId: 'c3a_win', points: 90, revealsClue: true },
+        { id: 'c3b', text: "Хорошо, помогите", nextNodeId: 'c3b_trap', points: 0, isRisky: true },
       ]},
-      { id: 'q3a_end', speaker: 'scammer', text: "Оплатите через сайт erip-pay-online.com - вводим все данные карты там", isCorrect: false },
-      { id: 'q3b_win', speaker: 'system', text: "✅ ИДЕАЛЬНО! Мошенник испугался реальной проверки и удалил аккаунт!", isCorrect: true },
-      { id: 'q3c_good', speaker: 'scammer', text: "М-м... ну, в некоторых случаях... в общем, вы должны платить СЕЙЧАС!" },
-      { id: 'q3c_good', speaker: 'system', text: "Мошенник начинает спешить. Что дальше?", choices: [
-        { id: 'q3c1', text: "Я буду разбираться официально через суд", nextNodeId: 'q3c1_win', points: 80, revealsClue: true },
-        { id: 'q3c2', text: "Хорошо, как платить?", nextNodeId: 'q3c2_end', points: 0, isRisky: true },
-      ]},
-      { id: 'q3c1_win', speaker: 'system', text: "✅ МОШЕННИК ИСЧЕЗ! Он не может действовать через оффициальные каналы, потому что это ФРА́УД!", isCorrect: true },
-      { id: 'q3c2_end', speaker: 'scammer', text: "Платите по ссылке: //erip-urgent-pay.ru - быстро, пока счет не заморожен!", isCorrect: false },
-
-      { id: 'q4_resp', speaker: 'scammer', text: "Наш номер... это служба безопасности, вы можете проверить через... м-м-м... через наш чат!" },
-      { id: 'q4_resp', speaker: 'system', text: "Мошенник вас ловко избегает. Как быть?", choices: [
-        { id: 'q4a', text: "Первый номер в Интернете: +375 (17) 220...", nextNodeId: 'q4a_good', points: 70, revealsClue: true },
-        { id: 'q4b', text: "Я позвоню на официальный номер - 153", nextNodeId: 'q4b_win', points: 100, revealsClue: true },
-        { id: 'q4c', text: "Хорошо, доверяю, как платить?", nextNodeId: 'q4c_end', points: 0, isRisky: true },
-      ]},
-      { id: 'q4a_good', speaker: 'scammer', text: "Э-э-э... подождите! Это всё может подождать... может быть вы ошиблись? Но всё же...", isCorrect: false },
-      { id: 'q4b_win', speaker: 'system', text: "✅ ОТЛИЧНО! Номер 153 - это действующая служба ЕРИП. Проверка подтвердила: мошенник в чате!", isCorrect: true },
-      { id: 'q4c_end', speaker: 'scammer', text: "Отлично! Переводите все денежки на мой счет по ссылке: //pay-erip-fake.ru/urgent - это спасет вас!", isCorrect: false },
+      { id: 'c3a_win', speaker: 'system', text: "✅ Правильно! Мошенник испугался -заблокировал!", isCorrect: true },
+      { id: 'c3b_trap', speaker: 'scammer', text: "Переходите на верификацию...", isCorrect: false },
     ],
     educationalInfo: {
       title: "ЕРИП: как распознать мошенников в чатах",
