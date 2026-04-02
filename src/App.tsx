@@ -802,16 +802,16 @@ function GameContent() {
   ];
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex items-center justify-center">
+    <div className="min-h-screen w-screen overflow-hidden flex items-center justify-center">
       <div className="scanline" />
-      
+
       {/* Background elements */}
       <div className="absolute inset-0 z-0 opacity-10 pointer-events-none">
         <div className={`absolute top-[-10%] left-[-10%] w-[50%] h-[50%] ${rank.bg.replace('/10', '/20')} blur-[150px] rounded-full transition-colors duration-1000`} />
         <div className={`absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] ${rank.bg.replace('/10', '/20')} blur-[150px] rounded-full transition-colors duration-1000`} />
       </div>
 
-      <main className="w-full max-w-[1920px] h-full flex flex-col z-10 py-1 md:py-4 overflow-hidden relative">
+      <main className="w-full max-w-[1920px] min-h-screen flex flex-col z-10 py-1 md:py-4 overflow-hidden relative">
         <AnimatePresence mode="wait">
           {gameState === 'START' && (
             <motion.div 
@@ -982,11 +982,11 @@ function GameContent() {
           )}
 
           {gameState === 'PLAYING' && (
-            <motion.div 
+            <motion.div
               key="playing"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="flex flex-col md:flex-row h-full w-full gap-2 md:gap-6 lg:gap-10 p-1 md:p-4 lg:p-8 overflow-hidden relative"
+              className="flex flex-col md:flex-row h-full w-full gap-2 md:gap-6 lg:gap-10 p-1 md:p-4 lg:p-8 px-2 md:px-0 overflow-hidden relative"
             >
               {/* Desktop Left Column: Stats & Rank */}
               <div className="hidden md:flex flex-col w-56 lg:w-72 xl:w-96 shrink-0 space-y-3 lg:space-y-6">
@@ -1149,8 +1149,8 @@ function GameContent() {
               </div>
 
               {/* Center Column: Smartphone */}
-              <div id="smartphone-card" className="flex-1 flex items-center justify-center min-h-0 relative py-1 md:py-2">
-                <div className="relative h-full max-h-[min(90vh,850px)] aspect-[9/19] bg-zinc-950 rounded-[2.5rem] md:rounded-[3.5rem] border-[6px] md:border-[12px] border-zinc-900 shadow-[0_0_100px_rgba(0,0,0,1),inset_0_0_40px_rgba(255,255,255,0.05)] overflow-hidden flex flex-col ring-1 ring-white/5 group">
+              <div id="smartphone-card" className="flex-1 flex items-center justify-center min-h-0 relative py-1 md:py-2 px-2">
+                <div className="relative h-full max-h-[min(calc(100vh-220px),850px)] md:max-h-[min(90vh,850px)] aspect-[9/19] bg-zinc-950 rounded-[2.5rem] md:rounded-[3.5rem] border-[6px] md:border-[12px] border-zinc-900 shadow-[0_0_100px_rgba(0,0,0,1),inset_0_0_40px_rgba(255,255,255,0.05)] overflow-hidden flex flex-col ring-1 ring-white/5 group">
                   
                   {/* Physical Buttons Realism */}
                   <div className="absolute -left-[7px] md:-left-[15px] top-24 w-1 md:w-1.5 h-10 md:h-14 bg-zinc-800 rounded-l-lg border-y border-l border-white/10 shadow-lg" />
@@ -1649,11 +1649,11 @@ function GameContent() {
                 tutorialStep === 3 ? 'justify-center items-end md:justify-start md:pl-[5%] md:pb-[15%]' :
                 'justify-center items-start pt-20 md:pt-[10%]'
               }`}>
-                <motion.div 
+                <motion.div
                   key={tutorialStep}
                   initial={{ opacity: 0, scale: 0.9, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  className="bg-zinc-900 border-2 border-purple-500 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] max-w-[90%] md:max-w-sm w-full shadow-[0_0_50px_rgba(168,85,247,0.6)] space-y-3 md:space-y-4 relative pointer-events-auto z-[210]"
+                  className="bg-zinc-900 border-2 border-purple-500 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] max-w-[90%] md:max-w-sm w-full max-h-[calc(100vh-100px)] md:max-h-none overflow-y-auto shadow-[0_0_50px_rgba(168,85,247,0.6)] space-y-3 md:space-y-4 relative pointer-events-auto z-[210]"
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-purple-500/20 rounded-xl">
@@ -1722,11 +1722,11 @@ function GameContent() {
         )}
 
           {gameState === 'MINIGAME' && miniGameData && (
-            <motion.div 
+            <motion.div
               key="minigame"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-zinc-900/90 border-2 border-red-500/50 p-1.5 md:p-6 rounded-[1.2rem] md:rounded-[2.5rem] backdrop-blur-xl space-y-1 md:space-y-4 shadow-[0_0_60px_rgba(239,68,68,0.3)] w-[95%] max-w-xl mx-auto max-h-[90vh] overflow-y-auto flex flex-col relative"
+              className="bg-zinc-900/90 border-2 border-red-500/50 p-1.5 md:p-6 rounded-[1.2rem] md:rounded-[2.5rem] backdrop-blur-xl space-y-1 md:space-y-4 shadow-[0_0_60px_rgba(239,68,68,0.3)] w-[95%] max-w-xl mx-auto max-h-[calc(100vh-80px)] overflow-y-auto flex flex-col relative"
             >
               <button 
                 onClick={() => setShowExitConfirm(true)}
@@ -2233,16 +2233,16 @@ function GameContent() {
         {/* Reset Confirmation Modal - Moved outside main AnimatePresence to fix mode="wait" warning */}
         <AnimatePresence>
           {showResetConfirm && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl"
+              className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl overflow-hidden"
             >
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, y: 20 }}
                 animate={{ scale: 1, y: 0 }}
-                className="bg-zinc-900 border border-red-500/30 p-8 md:p-12 rounded-[2.5rem] w-full max-w-md space-y-8 text-center"
+                className="bg-zinc-900 border border-red-500/30 p-8 md:p-12 rounded-[2.5rem] w-full max-w-md max-h-[calc(100vh-40px)] overflow-y-auto space-y-8 text-center"
               >
                 <div className="p-4 bg-red-500/20 rounded-full w-fit mx-auto">
                   <AlertTriangle className="w-12 h-12 text-red-500" />
@@ -2273,16 +2273,16 @@ function GameContent() {
         {/* FAQ Modal */}
         <AnimatePresence>
           {showExitConfirm && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl"
+              className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl overflow-hidden"
             >
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="bg-zinc-900 border-2 border-red-500/50 p-8 rounded-[2.5rem] max-w-sm w-full text-center space-y-6 shadow-2xl"
+                className="bg-zinc-900 border-2 border-red-500/50 p-8 rounded-[2.5rem] max-w-sm w-full max-h-[calc(100vh-40px)] overflow-y-auto text-center space-y-6 shadow-2xl"
               >
                 <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto">
                   <Home className="w-10 h-10 text-red-500" />
@@ -2310,16 +2310,16 @@ function GameContent() {
           )}
 
           {showFAQ && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[100] flex items-center justify-center p-2 md:p-4 bg-black/95 backdrop-blur-2xl overflow-hidden"
             >
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, y: 20 }}
                 animate={{ scale: 1, y: 0 }}
-                className="bg-zinc-900 border border-zinc-800 p-4 md:p-8 rounded-[2rem] md:rounded-[3rem] w-full max-w-4xl my-auto space-y-4 md:space-y-6 shadow-2xl relative max-h-full overflow-hidden flex flex-col"
+                className="bg-zinc-900 border border-zinc-800 p-4 md:p-8 rounded-[2rem] md:rounded-[3rem] w-full max-w-4xl max-h-[calc(100vh-60px)] space-y-4 md:space-y-6 shadow-2xl relative overflow-hidden flex flex-col"
               >
                 <button 
                   onClick={() => setShowFAQ(false)}
@@ -2338,7 +2338,7 @@ function GameContent() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 md:gap-6 overflow-hidden flex-1 min-h-0">
+                <div className="grid gap-3 md:gap-6 overflow-y-auto flex-1 min-h-0">
                   <section className="space-y-1 md:space-y-2 shrink-0">
                     <h3 className="text-xs md:text-lg font-black text-purple-500 uppercase italic flex items-center gap-1.5">
                       <Shield className="w-3 h-3 md:w-4 md:h-4" />
