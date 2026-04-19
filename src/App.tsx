@@ -10,10 +10,8 @@ import {
   ShieldAlert, 
   ShieldCheck, 
   AlertTriangle, 
-  Timer, 
   HelpCircle, 
   ArrowRight, 
-  RefreshCcw,
   Mail,
   MessageSquare,
   Globe,
@@ -21,9 +19,7 @@ import {
   CheckCircle2,
   XCircle,
   Search,
-  Eye,
   Snowflake,
-  Lock,
   Scissors,
   Radio,
   FileText,
@@ -72,11 +68,22 @@ function GameContent() {
   const [miniGameData, setMiniGameData] = useState<{ type: 'PASSWORD' | 'CABLE', target: string, progress: string | number } | null>(null);
   const [highScore, setHighScore] = useState(() => {
     const saved = localStorage.getItem('cybershield_highscore');
-    return saved ? parseInt(saved, 10) : 0;
+    if (!saved) return 0;
+    const parsed = Number.parseInt(saved, 10);
+    return Number.isNaN(parsed) ? 0 : parsed;
   });
   const [totalStats, setTotalStats] = useState(() => {
     const saved = localStorage.getItem('cybershield_stats');
-    return saved ? JSON.parse(saved) : { scenarios: 0, score: 0, rank: 'Курсант' };
+    if (!saved) return { scenarios: 0, score: 0, rank: 'Курсант' };
+    try {
+      const parsed = JSON.parse(saved);
+      if (typeof parsed?.scenarios !== 'number' || typeof parsed?.score !== 'number') {
+        return { scenarios: 0, score: 0, rank: 'Курсант' };
+      }
+      return parsed;
+    } catch {
+      return { scenarios: 0, score: 0, rank: 'Курсант' };
+    }
   });
 
   const [isTutorialActive, setIsTutorialActive] = useState(false);
@@ -93,6 +100,7 @@ function GameContent() {
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const audioHandlersRef = React.useRef<{ onended?: ((this: HTMLAudioElement, ev: Event) => any) | null; onerror?: ((this: HTMLAudioElement, ev: Event) => any) | null }>({});
   const bgMusicRef = React.useRef<HTMLAudioElement | null>(null);
+  const bgMusicResumeListenersRef = React.useRef<(() => void) | null>(null);
 
   // Определяем мобильное устройство
   useEffect(() => {
@@ -104,12 +112,13 @@ function GameContent() {
   const scenario = scenariosList[currentLevel];
 
   const getRank = useCallback(() => {
-    if (score >= 5000) return { title: 'Генерал Кибервойск', color: 'text-purple-400', bg: 'bg-purple-500/10' };
-    if (score >= 3000) return { title: 'Полковник «К»', color: 'text-red-400', bg: 'bg-red-500/10' };
-    if (score >= 1500) return { title: 'Майор Безопасности', color: 'text-orange-400', bg: 'bg-orange-500/10' };
-    if (score >= 500) return { title: 'Лейтенант ГУПК', color: 'text-blue-400', bg: 'bg-blue-500/10' };
-    return { title: 'Курсант Академии', color: 'text-zinc-400', bg: 'bg-zinc-500/10' };
-  }, [score]);
+    const totalScore = totalStats.score + score;
+    if (totalScore >= 5000) return { title: 'Генерал Кибервойск', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500' };
+    if (totalScore >= 3000) return { title: 'Полковник «К»', color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500' };
+    if (totalScore >= 1500) return { title: 'Майор Безопасности', color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500' };
+    if (totalScore >= 500) return { title: 'Лейтенант ГУПК', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500' };
+    return { title: 'Курсант Академии', color: 'text-zinc-400', bg: 'bg-zinc-500/10', border: 'border-zinc-500' };
+  }, [score, totalStats.score]);
 
   const rank = getRank();
 
@@ -150,6 +159,8 @@ function GameContent() {
 
       const now = ctx.currentTime;
 
+      let soundDurationSec = 0.1;
+
       if (type === 'correct') {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(440, now);
@@ -158,6 +169,7 @@ function GameContent() {
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
         osc.start(now);
         osc.stop(now + 0.1);
+        soundDurationSec = 0.1;
       } else if (type === 'ringing') {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(400, now);
@@ -178,6 +190,7 @@ function GameContent() {
         gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
         osc2.start(now);
         osc2.stop(now + 0.5);
+        soundDurationSec = 0.5;
       } else if (type === 'wrong') {
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(150, now);
@@ -186,6 +199,7 @@ function GameContent() {
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
         osc.start(now);
         osc.stop(now + 0.2);
+        soundDurationSec = 0.2;
       } else if (type === 'click') {
         osc.type = 'square';
         osc.frequency.setValueAtTime(600, now);
@@ -193,6 +207,7 @@ function GameContent() {
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
         osc.start(now);
         osc.stop(now + 0.05);
+        soundDurationSec = 0.05;
       } else if (type === 'powerup') {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(200, now);
@@ -201,6 +216,7 @@ function GameContent() {
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
         osc.start(now);
         osc.stop(now + 0.3);
+        soundDurationSec = 0.3;
       } else if (type === 'minigame') {
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(100, now);
@@ -209,6 +225,7 @@ function GameContent() {
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
         osc.start(now);
         osc.stop(now + 0.5);
+        soundDurationSec = 0.5;
       } else if (type === 'win') {
         // Radio static effect
         const noise = ctx.createBufferSource();
@@ -233,6 +250,7 @@ function GameContent() {
         gain.gain.linearRampToValueAtTime(0, now + 0.5);
         osc.start(now);
         osc.stop(now + 0.5);
+        soundDurationSec = 0.5;
       } else if (type === 'lose') {
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(300, now);
@@ -241,7 +259,12 @@ function GameContent() {
         gain.gain.linearRampToValueAtTime(0, now + 0.5);
         osc.start(now);
         osc.stop(now + 0.5);
+        soundDurationSec = 0.5;
       }
+
+      window.setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, Math.ceil(soundDurationSec * 1000) + 200);
     } catch (e) {
       console.error("Audio playback failed", e);
     }
@@ -406,7 +429,7 @@ function GameContent() {
     setEvidence([]);
     setPowerUps({ magnifier: 3, freeze: 2, call: 1 });
     setCurrentDialogNodeId('start'); // Сбросить состояние диалога
-    setDialogHistory([]); // Сбросить историю диалога
+    setDialogHistory(['start']); // Сбросить историю диалога
     setUserResponses([]); // Сбросить ответы пользователя
     setDialogScore(0); // Сбросить очки диалога
     setTracingSelectedPath([]); // Сбросить путь трассировки
@@ -428,6 +451,8 @@ function GameContent() {
     setGameState('MINIGAME');
   }, [playSound]);
 
+  const [showPointsAnimation, setShowPointsAnimation] = useState<number | null>(null);
+
   const handleChoice = useCallback((isPhishing: boolean) => {
     if (gameState !== 'PLAYING') return;
     
@@ -439,6 +464,8 @@ function GameContent() {
     if (correct) {
       playSound('correct');
       const points = (100 + Math.floor(timeLeft * 5)) * combo;
+      setShowPointsAnimation(points);
+      setTimeout(() => setShowPointsAnimation(null), 1500);
       setScore(s => s + points);
       setCombo(c => Math.min(c + 1, 5));
       setLastResult({ correct: true, message: "УГРОЗА НЕЙТРАЛИЗОВАНА" });
@@ -469,6 +496,10 @@ function GameContent() {
     setGameState('FEEDBACK');
   }, [playSound]);
 
+  const [dialogClueRevealed, setDialogClueRevealed] = useState<string | null>(null);
+  const [dialogWarningShown, setDialogWarningShown] = useState<string | null>(null);
+  const [activePowerUp, setActivePowerUp] = useState<string | null>(null);
+
   const handleDialogChoice = useCallback((choiceId: string) => {
     if (gameState !== 'PLAYING' || !scenario.dialogTree) return;
 
@@ -479,6 +510,19 @@ function GameContent() {
     if (!choice) return;
 
     playSound('click');
+
+    // Показать визуальную подсказку если выбор раскрывает улику
+    if (choice.revealsClue) {
+      setDialogClueRevealed(choice.id);
+      setTimeout(() => setDialogClueRevealed(null), 2000);
+    }
+    
+    // Показать предупреждение если выбор рискованный
+    if (choice.isRisky) {
+      setDialogWarningShown(choice.id);
+      setTimeout(() => setDialogWarningShown(null), 2000);
+      playSound('wrong');
+    }
 
     // Накапливаем очки
     const newScore = (choice.points || 0);
@@ -504,7 +548,6 @@ function GameContent() {
         setGameState('FEEDBACK');
       } else if (nextNode.isCorrect === false) {
         // Неправильный путь - штраф
-        playSound('wrong');
         setCombo(1);
         startMiniGame(Math.random() > 0.5 ? 'PASSWORD' : 'CABLE');
       } else {
@@ -593,9 +636,16 @@ function GameContent() {
 
     // Magnifier is useless in voice calls
     if (type === 'magnifier' && scenario.type === ScenarioType.VOICE) return;
+    
+    // Call power-up is useless in DIALOG/TRACING modes
+    if (type === 'call' && (scenario.type === ScenarioType.DIALOG || scenario.type === ScenarioType.TRACING)) return;
 
     playSound('powerup');
     setPowerUps(prev => ({ ...prev, [type]: prev[type] - 1 }));
+    
+    // Анимация активации
+    setActivePowerUp(type);
+    setTimeout(() => setActivePowerUp(null), 1000);
 
     if (type === 'magnifier') {
       setShowHint(true);
@@ -603,13 +653,14 @@ function GameContent() {
       setIsFrozen(true);
       setTimeout(() => setIsFrozen(false), 8000);
     } else if (type === 'call') {
-      // Auto-investigate everything
+      // Auto-investigate everything for non-DIALOG/TRACING types
       setInvestigated({ sender: true, url: true });
     }
-  }, [powerUps, gameState, playSound]);
+  }, [powerUps, gameState, playSound, showHint, scenario.type, investigated.sender, investigated.url, isFrozen, isVoicePlaying]);
 
   const resetProgress = useCallback(() => {
-    localStorage.clear();
+    localStorage.removeItem('cybershield_highscore');
+    localStorage.removeItem('cybershield_stats');
     setScore(0);
     setHighScore(0);
     setTotalStats({ score: 0, scenarios: 0, rank: 'Курсант Академии' });
@@ -655,6 +706,7 @@ function GameContent() {
         setVoiceAudioFailed(false); // Сбрасываем флаг ошибки
         setCurrentDialogNodeId('start'); // Сбросить состояние диалога
         setDialogHistory(['start']); // Сбросить историю диалога
+        setUserResponses([]); // Сбросить ответы пользователя
         setDialogScore(0); // Сбросить очки диалога
         setTracingSelectedPath([]); // Сбросить путь трассировки
         setGameState('PLAYING');
@@ -671,7 +723,7 @@ function GameContent() {
           setGameState('END');
           // После этого пользователь нажмет кнопку в END экране
         } else {
-          // Завершена вся игра (оба уровня)
+          // Завершена вся игра (все уровни)
           playSound('win');
           if (score > highScore) {
             setHighScore(score);
@@ -681,7 +733,7 @@ function GameContent() {
         }
       }
     }, 1500);
-  }, [currentLevel, playSound, score, highScore, updateStats, playAudioFile, scenariosList, userInteracted, isNewGamePlus, isMobile]);
+  }, [currentLevel, playSound, score, highScore, updateStats, playAudioFile, scenariosList, isNewGamePlus, isMobile]);
 
   // Ручной запуск голосового сообщения (для мобильных если не запустилось автоматически)
   const handlePlayVoiceAudio = useCallback(() => {
@@ -707,6 +759,9 @@ function GameContent() {
     // --------------------------------
 
     // На мобильных аудио не запустится без взаимодействия пользователя
+    bgMusicResumeListenersRef.current?.();
+    bgMusicResumeListenersRef.current = null;
+
     if (isSoundEnabled && userInteracted) {
       const checkAndPlay = async () => {
         try {
@@ -732,6 +787,12 @@ function GameContent() {
             window.removeEventListener('click', enableAudio);
             window.removeEventListener('touchstart', enableAudio);
             window.removeEventListener('keydown', enableAudio);
+            bgMusicResumeListenersRef.current = null;
+          };
+          bgMusicResumeListenersRef.current = () => {
+            window.removeEventListener('click', enableAudio);
+            window.removeEventListener('touchstart', enableAudio);
+            window.removeEventListener('keydown', enableAudio);
           };
           window.addEventListener('click', enableAudio);
           window.addEventListener('touchstart', enableAudio);
@@ -746,6 +807,8 @@ function GameContent() {
 
     return () => {
       bgMusicRef.current?.pause();
+      bgMusicResumeListenersRef.current?.();
+      bgMusicResumeListenersRef.current = null;
     };
   }, [isSoundEnabled, userInteracted]);
 
@@ -780,17 +843,18 @@ function GameContent() {
   useEffect(() => {
     if (gameState !== 'PLAYING' || isFrozen || isVoicePlaying) return;
 
-    if (timeLeft <= 0) {
-      handleChoice(!scenario.isPhishing);
-      return;
-    }
-
     const timer = setInterval(() => {
-      setTimeLeft(prev => prev - 1);
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          handleChoice(!scenario.isPhishing);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [gameState, timeLeft, scenario, handleChoice, isFrozen, isVoicePlaying]);
+  }, [gameState, scenario, handleChoice, isFrozen, isVoicePlaying]);
 
   const GLOSSARY_DATA = [
     { term: "Фишинг", def: "Поддельные сайты или письма, крадущие пароли." },
@@ -827,13 +891,6 @@ function GameContent() {
                     setUserInteracted(true); // Разблокируем аудио для мобильных
                     setIsSoundEnabled(!isSoundEnabled);
                     // Пытаемся сразу запустить музыку если включаем звук
-                    if (!isSoundEnabled && bgMusicRef.current) {
-                      bgMusicRef.current.play().catch(() => {});
-                    }
-                  }}
-                  onTouchStart={() => {
-                    setUserInteracted(true);
-                    setIsSoundEnabled(!isSoundEnabled);
                     if (!isSoundEnabled && bgMusicRef.current) {
                       bgMusicRef.current.play().catch(() => {});
                     }
@@ -923,45 +980,45 @@ function GameContent() {
               key="story"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex-1 flex flex-col items-center justify-center p-2 md:p-4 w-full max-w-2xl mx-auto h-full overflow-hidden"
+              className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 w-full max-w-lg sm:max-w-2xl mx-auto h-full overflow-hidden"
             >
-              <div className="bg-zinc-900/90 border border-zinc-800 p-4 md:p-8 rounded-[2rem] shadow-2xl space-y-4 md:space-y-6 w-full max-h-full flex flex-col overflow-hidden">
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="p-2 bg-blue-500/20 rounded-full border border-blue-500/30">
-                    <Zap className="w-5 h-5 text-blue-500" />
+              <div className="bg-zinc-900/90 border border-zinc-800 p-3 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl lg:rounded-[2rem] shadow-2xl space-y-3 sm:space-y-5 w-full max-h-full flex flex-col overflow-hidden">
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                  <div className="p-1.5 sm:p-2 bg-blue-500/20 rounded-full border border-blue-500/30">
+                    <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
                   </div>
                   <div>
-                    <div className="text-blue-500 font-black text-xs md:text-xs lg:text-sm uppercase tracking-widest">Входящий приказ</div>
-                    <div className="text-white font-black text-base md:text-xl uppercase tracking-tight">ИИ-Помощник «ЩИТ»</div>
+                    <div className="text-blue-500 font-black text-xs uppercase tracking-widest">Входящий приказ</div>
+                    <div className="text-white font-black text-sm sm:text-base lg:text-xl uppercase tracking-tight">ИИ-Помощник «ЩИТ»</div>
                   </div>
                 </div>
 
                 <div className="h-px bg-zinc-800 w-full shrink-0" />
 
-                <div className="space-y-3 md:space-y-4 overflow-hidden flex-1 min-h-0">
-                  <p className="text-zinc-500 font-mono text-xs md:text-xs lg:text-sm uppercase tracking-widest shrink-0">_ ИНИЦИАЛИЗАЦИЯ КУРСАНТА...</p>
-                  <div className="space-y-2 md:space-y-4 overflow-hidden">
+                <div className="space-y-2 sm:space-y-3 overflow-hidden flex-1 min-h-0">
+                  <p className="text-zinc-500 font-mono text-[10px] sm:text-xs uppercase tracking-widest shrink-0">_ ИНИЦИАЛИЗАЦИЯ КУРСАНТА...</p>
+                  <div className="space-y-2 sm:space-y-3 overflow-hidden">
                     {!isNewGamePlus ? (
                       <>
-                        <p className="text-zinc-300 text-xs md:text-lg leading-relaxed font-medium">
+                        <p className="text-zinc-300 text-xs sm:text-sm lg:text-lg leading-relaxed font-medium">
                           Добро пожаловать в Управление «К». В 2026 году киберпреступность стала главной угрозой в Беларуси. Мошенники используют ИИ, дипфейки и поддельные сервисы.
                         </p>
-                        <p className="text-zinc-300 text-xs md:text-lg leading-relaxed font-medium">
+                        <p className="text-zinc-300 text-xs sm:text-sm lg:text-lg leading-relaxed font-medium">
                           Твоя задача: фильтровать поток данных. У тебя есть 3 единицы «Цифрового иммунитета». Каждая ошибка — это утечка данных граждан.
                         </p>
                       </>
                     ) : (
                       <>
-                        <p className="text-zinc-300 text-xs md:text-lg leading-relaxed font-medium">
+                        <p className="text-zinc-300 text-xs sm:text-sm lg:text-lg leading-relaxed font-medium">
                           Поздравляем! Ты прошел основной курс подготовки. Теперь начинается продвинутый уровень — режим Эксперта.
                         </p>
-                        <p className="text-zinc-300 text-xs md:text-lg leading-relaxed font-medium">
+                        <p className="text-zinc-300 text-xs sm:text-sm lg:text-lg leading-relaxed font-medium">
                           На этом уровне мошенники используют комбинированные атаки: несколько каналов одновременно, социальную инженерию и адаптивные методы. Будь готов к неожиданному!
                         </p>
                       </>
                     )}
                   </div>
-                  <p className="text-purple-500 font-mono text-xs md:text-xs lg:text-sm uppercase tracking-widest shrink-0">_ ГОТОВ К ЗАДАНИЮ?</p>
+                  <p className="text-purple-500 font-mono text-[10px] sm:text-xs uppercase tracking-widest shrink-0">_ ГОТОВ К ЗАДАНИЮ?</p>
                 </div>
 
                 <button 
@@ -986,18 +1043,18 @@ function GameContent() {
               key="playing"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="flex flex-col md:flex-row h-full w-full gap-2 md:gap-6 lg:gap-10 p-1 md:p-4 lg:p-8 px-2 md:px-0 overflow-hidden relative"
+              className="flex flex-col lg:flex-row h-full w-full gap-2 md:gap-4 lg:gap-6 p-1 md:p-3 lg:p-6 px-1 md:px-2 overflow-hidden relative"
             >
-              {/* Desktop Left Column: Stats & Rank */}
-              <div className="hidden md:flex flex-col w-56 lg:w-72 xl:w-96 shrink-0 space-y-3 lg:space-y-6">
-                  <div id="stats-card" className="bg-zinc-900/60 border border-zinc-800/50 p-4 lg:p-8 rounded-[2rem] lg:rounded-[2.5rem] backdrop-blur-xl space-y-3 lg:space-y-6 shadow-2xl relative">
-                    <div className="flex items-center gap-3 lg:gap-5">
-                      <div className={`p-2 lg:p-4 rounded-2xl ${rank.bg} border border-white/5`}>
-                        <User className={`w-5 h-5 lg:w-8 lg:h-8 ${rank.color}`} />
+              {/* Desktop/Tablet Left Column: Stats & Rank - скрыт на мобильных */}
+              <div className="hidden lg:flex flex-col w-56 xl:w-72 2xl:w-80 shrink-0 space-y-3 xl:space-y-4">
+                  <div id="stats-card" className="bg-zinc-900/60 border border-zinc-800/50 p-4 xl:p-6 rounded-2xl backdrop-blur-xl space-y-3 shadow-2xl relative">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 xl:p-3 rounded-xl ${rank.bg} border border-white/5`}>
+                        <User className={`w-5 h-5 xl:w-6 xl:h-6 ${rank.color}`} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-xs lg:text-sm text-zinc-500 uppercase font-black tracking-[0.2em] mb-0.5">Текущий статус</div>
-                        <div className={`text-sm lg:text-lg xl:text-xl font-black uppercase tracking-tight leading-none ${rank.color} drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]`}>{rank.title}</div>
+                        <div className="text-xs text-zinc-500 uppercase font-black tracking-[0.2em] mb-0.5">Статус</div>
+                        <div className={`text-sm font-black uppercase tracking-tight leading-none ${rank.color}`}>{rank.title}</div>
                       </div>
                       <button
                         onClick={() => {
@@ -1007,25 +1064,22 @@ function GameContent() {
                             bgMusicRef.current.play().catch(() => {});
                           }
                         }}
-                        onTouchStart={() => {
-                          setUserInteracted(true);
-                          setIsSoundEnabled(!isSoundEnabled);
-                          if (!isSoundEnabled && bgMusicRef.current) {
-                            bgMusicRef.current.play().catch(() => {});
-                          }
-                        }}
-                        className="p-2.5 bg-zinc-800/80 hover:bg-zinc-700 rounded-full border border-white/10 text-zinc-400 transition-all shadow-lg backdrop-blur-md shrink-0 focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                        className="p-2 bg-zinc-800/80 hover:bg-zinc-700 rounded-full border border-white/10 text-zinc-400 transition-all shadow-lg backdrop-blur-md shrink-0 focus:ring-2 focus:ring-purple-500"
                         aria-label={isSoundEnabled ? "Выключить звук" : "Включить звук"}
                       >
-                        {isSoundEnabled ? <Volume2 className="w-4 h-4 lg:w-5 lg:h-5" aria-label="Звук включен" /> : <><VolumeX className="w-4 h-4 lg:w-5 lg:h-5" aria-label="Звук выключен" /><span className="text-xs ml-1">Выкл</span></>}
+                        {isSoundEnabled ? <Volume2 className="w-4 h-4" aria-label="Звук включен" /> : <><VolumeX className="w-4 h-4" aria-label="Звук выключен" /><span className="text-xs ml-1">Выкл</span></>}
                       </button>
                     </div>
-                    <div className="space-y-2 lg:space-y-3">
-                      <div className="flex justify-between text-sm lg:text-base font-black uppercase tracking-widest">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm font-black uppercase tracking-widest relative">
                         <span className="text-zinc-500">Счет</span>
-                        <span className="text-white">{score}</span>
+                        <span className={`text-white ${showPointsAnimation ? 'animate-count-up' : ''}`}>
+                          {showPointsAnimation ? (
+                            <span className="text-green-400">+{showPointsAnimation}</span>
+                          ) : score}
+                        </span>
                       </div>
-                      <div className="h-3 lg:h-5 bg-zinc-800 rounded-full overflow-hidden border border-white/10 relative shadow-inner">
+                      <div className="h-3 bg-zinc-800 rounded-full overflow-hidden border border-white/10 relative shadow-inner">
                         <motion.div 
                           animate={{ width: `${Math.min(100, (score / 5000) * 100)}%` }}
                           className={`h-full ${rank.color.replace('text-', 'bg-')} shadow-[0_0_25px_rgba(255,255,255,0.6)] relative`}
@@ -1036,46 +1090,46 @@ function GameContent() {
                     </div>
                   </div>
 
-                <div className="bg-zinc-900/60 border border-zinc-800/50 p-4 lg:p-8 rounded-[2rem] lg:rounded-[2.5rem] backdrop-blur-xl flex-1 min-h-0 overflow-hidden flex flex-col shadow-2xl">
-                  <h4 className="text-xs lg:text-sm font-black text-zinc-500 uppercase tracking-[0.2em] flex items-center gap-2 lg:gap-3 mb-3 lg:mb-6 shrink-0">
-                    <Shield className="w-3 h-3 lg:w-5 lg:h-5 text-purple-500" />
-                    История операций
+                <div className="bg-zinc-900/60 border border-zinc-800/50 p-4 xl:p-6 rounded-2xl backdrop-blur-xl flex-1 min-h-0 overflow-hidden flex flex-col shadow-2xl">
+                  <h4 className="text-xs font-black text-zinc-500 uppercase tracking-[0.2em] flex items-center gap-2 mb-3 shrink-0">
+                    <Shield className="w-3 h-3 text-purple-500" />
+                    История
                   </h4>
-                  <div className="flex-1 overflow-hidden space-y-2 lg:space-y-3 pr-2">
-                    {evidence.slice(-5).map((item, i) => (
+                  <div className="flex-1 overflow-hidden space-y-2 pr-2">
+                    {evidence.slice(-4).map((item, i) => (
                       <motion.div 
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         key={i} 
-                        className="p-2 lg:p-3 bg-zinc-950/80 rounded-xl lg:rounded-2xl border border-zinc-800/50 text-xs lg:text-sm text-zinc-400 font-mono break-all leading-relaxed"
+                        className="p-2 bg-zinc-950/80 rounded-lg border border-zinc-800/50 text-xs text-zinc-400 font-mono break-all leading-relaxed"
                       >
                         {item}
                       </motion.div>
                     ))}
-                    {evidence.length === 0 && <p className="text-xs lg:text-sm text-zinc-600 italic font-mono">Нет собранных улик...</p>}
+                    {evidence.length === 0 && <p className="text-xs text-zinc-600 italic font-mono">Нет улик...</p>}
                   </div>
                 </div>
               </div>
 
-              {/* Mobile HUD (visible only on mobile) - MOVED TO TOP */}
-                <div id="mobile-hud" className="md:hidden flex flex-col gap-2 shrink-0 w-full max-w-sm mx-auto">
-                <div className="flex justify-between items-center bg-zinc-900/50 p-3 px-5 rounded-2xl border border-zinc-800/50 backdrop-blur-md">
-                  <div className="flex gap-1.5">
+              {/* Mobile HUD (visible only on mobile < 1024px) */}
+                <div id="mobile-hud" className="lg:hidden flex flex-col gap-1 sm:gap-2 shrink-0 w-full max-w-[360px] sm:max-w-sm mx-auto">
+                <div className="flex justify-between items-center bg-zinc-900/50 p-2 sm:p-3 px-3 sm:px-5 rounded-xl sm:rounded-2xl border border-zinc-800/50 backdrop-blur-md">
+                  <div className="flex gap-1">
                     {[...Array(3)].map((_, i) => (
-                      <Heart key={i} className={`w-5 h-5 ${i < health ? 'text-red-500 fill-red-500' : 'text-zinc-800'}`} />
+                      <Heart key={i} className={`w-4 h-4 sm:w-5 sm:h-5 ${i < health ? 'text-red-500 fill-red-500' : 'text-zinc-800'}`} />
                     ))}
                   </div>
-                  <div className={`text-xl font-black font-mono ${isFrozen ? 'text-blue-400' : 'text-purple-500'}`}>
+                  <div className={`text-lg sm:text-xl font-black font-mono ${isFrozen ? 'text-blue-400' : 'text-purple-500'}`}>
                     {timeLeft < 10 ? `0${timeLeft}` : timeLeft}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     <button 
                       onClick={() => setShowExitConfirm(true)}
                       onTouchStart={() => setShowExitConfirm(true)}
-                      className="p-2.5 bg-red-500 rounded-full text-white shadow-lg backdrop-blur-md hover:bg-red-600 transition-all focus:ring-2 focus:ring-red-500 min-h-[44px]"
+                      className="p-2 sm:p-2.5 bg-red-500 rounded-full text-white shadow-lg backdrop-blur-md hover:bg-red-600 transition-all focus:ring-2 focus:ring-red-500"
                       aria-label="Выход в меню"
                     >
-                      <Home className="w-5 h-5" aria-label="Иконка дома" />
+                      <Home className="w-4 h-4 sm:w-5 sm:h-5" aria-label="Иконка дома" />
                     </button>
                     <button
                       onClick={() => {
@@ -1085,17 +1139,10 @@ function GameContent() {
                           bgMusicRef.current.play().catch(() => {});
                         }
                       }}
-                      onTouchStart={() => {
-                        setUserInteracted(true);
-                        setIsSoundEnabled(!isSoundEnabled);
-                        if (!isSoundEnabled && bgMusicRef.current) {
-                          bgMusicRef.current.play().catch(() => {});
-                        }
-                      }}
-                      className="p-2.5 bg-zinc-800/80 rounded-full border border-white/10 text-zinc-400 shadow-lg backdrop-blur-md focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                      className="p-2 sm:p-2.5 bg-zinc-800/80 rounded-full border border-white/10 text-zinc-400 shadow-lg backdrop-blur-md focus:ring-2 focus:ring-purple-500"
                       aria-label={isSoundEnabled ? "Выключить звук" : "Включить звук"}
                     >
-                      {isSoundEnabled ? <Volume2 className="w-5 h-5" aria-label="Звук включен" /> : <><VolumeX className="w-5 h-5" aria-label="Звук выключен" /><span className="text-xs ml-1">Выкл</span></>}
+                      {isSoundEnabled ? <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" aria-label="Звук включен" /> : <><VolumeX className="w-4 h-4 sm:w-5 sm:h-5" aria-label="Звук выключен" /><span className="text-xs ml-1">Выкл</span></>}
                     </button>
                     <div className="text-right">
                       <div className="text-sm font-black text-white font-mono">
@@ -1105,52 +1152,52 @@ function GameContent() {
                   </div>
                 </div>
                 
-                <div className="flex justify-center gap-2">
+                <div className="flex justify-center gap-1 sm:gap-2">
                   <button 
                     onClick={() => usePowerUp('magnifier')}
                     onTouchStart={() => usePowerUp('magnifier')}
                     disabled={powerUps.magnifier === 0 || showHint || isVoicePlaying || scenario.type === ScenarioType.VOICE}
-                    className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-blue-400 disabled:opacity-30 focus:ring-2 focus:ring-blue-500 min-h-[44px]"
+                    className={`p-2 sm:p-3 bg-zinc-900 border rounded-lg sm:rounded-xl text-blue-400 disabled:opacity-30 focus:ring-2 focus:ring-blue-500 min-h-[40px] sm:min-h-[44px] transition-all ${activePowerUp === 'magnifier' ? 'animate-pulse border-blue-400 glow-cyan' : 'border-zinc-800'}`}
                     aria-label="Использовать лупу"
                   >
-                    <Search className="w-5 h-5" aria-label="Иконка лупы" />
+                    <Search className="w-4 h-4 sm:w-5 sm:h-5" aria-label="Иконка лупы" />
                   </button>
                   <button 
                     onClick={() => usePowerUp('freeze')}
                     onTouchStart={() => usePowerUp('freeze')}
                     disabled={powerUps.freeze === 0 || isFrozen || isVoicePlaying}
-                    className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-cyan-400 disabled:opacity-30 focus:ring-2 focus:ring-cyan-500 min-h-[44px]"
+                    className={`p-2 sm:p-3 bg-zinc-900 border rounded-lg sm:rounded-xl text-cyan-400 disabled:opacity-30 focus:ring-2 focus:ring-cyan-500 min-h-[40px] sm:min-h-[44px] transition-all ${activePowerUp === 'freeze' ? 'animate-pulse border-cyan-400 glow-cyan' : 'border-zinc-800'}`}
                     aria-label="Использовать заморозку"
                   >
-                    <Snowflake className="w-5 h-5" aria-label="Иконка снежинки" />
+                    <Snowflake className="w-4 h-4 sm:w-5 sm:h-5" aria-label="Иконка снежинки" />
                   </button>
                   <button 
                     onClick={() => usePowerUp('call')}
                     onTouchStart={() => usePowerUp('call')}
-                    disabled={powerUps.call === 0 || (investigated.sender && investigated.url) || isVoicePlaying}
-                    className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-purple-400 disabled:opacity-30 focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                    disabled={powerUps.call === 0 || (investigated.sender && investigated.url) || isVoicePlaying || scenario.type === ScenarioType.DIALOG || scenario.type === ScenarioType.TRACING}
+                    className={`p-2 sm:p-3 bg-zinc-900 border rounded-lg sm:rounded-xl text-purple-400 disabled:opacity-30 focus:ring-2 focus:ring-purple-500 min-h-[40px] sm:min-h-[44px] transition-all ${activePowerUp === 'call' ? 'animate-pulse border-purple-400 glow-purple' : 'border-zinc-800'}`}
                     aria-label="Использовать звонок"
                   >
-                    <Radio className="w-5 h-5" aria-label="Иконка радио" />
+                    <Radio className="w-4 h-4 sm:w-5 sm:h-5" aria-label="Иконка радио" />
                   </button>
                   <button 
                     onClick={() => setShowFAQ(true)}
                     onTouchStart={() => setShowFAQ(true)}
-                    className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-500 focus:ring-2 focus:ring-zinc-500 min-h-[44px]"
+                    className="p-2 sm:p-3 bg-zinc-900 border border-zinc-800 rounded-lg sm:rounded-xl text-zinc-500 focus:ring-2 focus:ring-zinc-500 min-h-[40px] sm:min-h-[44px]"
                     aria-label="Показать FAQ"
                   >
-                    <HelpCircle className="w-5 h-5" aria-label="Иконка помощи" />
+                    <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5" aria-label="Иконка помощи" />
                   </button>
                 </div>
 
-                <div id="mobile-briefing" className={`p-2 lg:p-3 rounded-xl border text-xs md:text-sm lg:text-base font-mono leading-tight overflow-hidden ${scenario.isSpecialMission ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-zinc-900/50 border-zinc-800 text-zinc-500'}`}>
+                <div id="mobile-briefing" className={`p-2 sm:p-3 rounded-lg sm:rounded-xl border text-xs font-mono leading-tight overflow-hidden ${scenario.isSpecialMission ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-zinc-900/50 border-zinc-800 text-zinc-500'}`}>
                   <p>{scenario.briefing}</p>
                 </div>
               </div>
 
               {/* Center Column: Smartphone */}
-              <div id="smartphone-card" className="flex-1 flex items-center justify-center min-h-0 relative py-1 md:py-2 px-2">
-                <div className="relative h-full max-h-[min(calc(100vh-220px),850px)] md:max-h-[min(90vh,850px)] aspect-[9/19] bg-zinc-950 rounded-[2.5rem] md:rounded-[3.5rem] border-[6px] md:border-[12px] border-zinc-900 shadow-[0_0_100px_rgba(0,0,0,1),inset_0_0_40px_rgba(255,255,255,0.05)] overflow-hidden flex flex-col ring-1 ring-white/5 group">
+                <div id="smartphone-card" className="flex-1 flex items-center justify-center min-h-0 relative py-1 px-1 sm:py-2 sm:px-2">
+                <div className="relative h-full max-h-[min(calc(100vh-280px),600px)] sm:max-h-[min(calc(100vh-220px),700px)] md:max-h-[min(calc(100vh-180px),800px)] lg:max-h-[min(calc(100vh-100px),850px)] aspect-[9/19] bg-zinc-950 rounded-2xl sm:rounded-[2.5rem] md:rounded-[3.5rem] border-4 sm:border-[6px] md:border-[12px] border-zinc-900 shadow-[0_0_60px_rgba(0,0,0,0.8),inset_0_0_30px_rgba(255,255,255,0.03)] overflow-hidden flex flex-col ring-1 ring-white/5 group">
                   
                   {/* Physical Buttons Realism */}
                   <div className="absolute -left-[7px] md:-left-[15px] top-24 w-1 md:w-1.5 h-10 md:h-14 bg-zinc-800 rounded-l-lg border-y border-l border-white/10 shadow-lg" />
@@ -1249,7 +1296,8 @@ function GameContent() {
                                     isCorrect: histNode.isCorrect
                                   });
 
-                                  // Проверяем, есть ли ответ пользователя для этого узла
+                                  // Ищем ответ пользователя для ЭТОГО узла (а не для предыдущего!)
+                                  // Ответ пользователя сохраняется с nodeId = id узла, на котором был сделан выбор
                                   const userResponse = userResponses.find((r: any) => r.nodeId === historyItemId);
                                   if (userResponse) {
                                     dialogMessages.push({
@@ -1274,9 +1322,9 @@ function GameContent() {
                               return (
                                 <div className="flex-1 flex flex-col space-y-2 overflow-hidden">
                                   {/* Диалог - история сообщений */}
-                                  <div className="bg-zinc-900/90 rounded-xl p-2.5 md:p-3 border border-zinc-800 space-y-1.5 shadow-2xl flex-1 min-h-0 overflow-y-auto">
+                                  <div className="bg-zinc-900/90 rounded-xl p-2 md:p-2.5 lg:p-3 border border-zinc-800 space-y-1 md:space-y-1.5 shadow-2xl flex-1 min-h-0 overflow-y-auto">
                                     {dialogMessages.length === 0 ? (
-                                      <div className="text-center text-zinc-500 text-xs py-3">
+                                      <div className="text-center text-zinc-500 text-[10px] xs:text-xs py-2 md:py-3">
                                         💬 Диалог начинается...
                                       </div>
                                     ) : (
@@ -1286,9 +1334,9 @@ function GameContent() {
                                           initial={{ opacity: 0, y: 10 }}
                                           animate={{ opacity: 1, y: 0 }}
                                           transition={{ duration: 0.3 }}
-                                          className={`flex items-start gap-1.5 md:gap-2`}
+                                          className={`flex items-start gap-1 md:gap-1.5 lg:gap-2`}
                                         >
-                                          <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-black text-white text-xs md:text-sm shrink-0 ${
+                                          <div className={`w-6 h-6 md:w-7 md:h-7 lg:w-8 lg:h-8 rounded-full flex items-center justify-center font-black text-white text-[10px] md:text-xs shrink-0 ${
                                             msg.speaker === 'scammer' ? 'bg-red-500/40 border border-red-500/50' :
                                             msg.speaker === 'user' ? 'bg-cyan-500/40 border border-cyan-500/50' :
                                             'bg-zinc-600/60 border border-zinc-500/50'
@@ -1296,14 +1344,14 @@ function GameContent() {
                                             {msg.speaker === 'scammer' ? '👤' : msg.speaker === 'user' ? '🛡️' : 'ℹ️'}
                                           </div>
                                           <div className={`flex-1 min-w-0`}>
-                                            <h6 className={`font-semibold text-xs md:text-xs ${
+                                            <h6 className={`font-semibold text-[10px] md:text-xs ${
                                               msg.speaker === 'scammer' ? 'text-red-300' :
                                               msg.speaker === 'user' ? 'text-cyan-300' :
                                               'text-zinc-400'
                                             }`}>
                                               {msg.speaker === 'scammer' ? 'Мошенник' : msg.speaker === 'user' ? 'Вы' : 'Система'}
                                             </h6>
-                                            <p className="text-xs md:text-xs text-zinc-100 leading-snug py-0.5 break-words">
+                                            <p className="text-[10px] md:text-xs text-zinc-100 leading-tight md:leading-snug py-0.5 break-words">
                                               {msg.text}
                                             </p>
                                           </div>
@@ -1323,9 +1371,25 @@ function GameContent() {
                                             e.preventDefault();
                                             handleDialogChoice(choice.id);
                                           }}
-                                          className="p-2.5 md:p-3 rounded-lg border border-zinc-700 text-xs md:text-sm bg-zinc-800/60 text-zinc-100 hover:bg-zinc-700/60 transition-all active:scale-95 focus:ring-2 focus:ring-blue-500 min-h-[40px] text-left"
+                                          className={`p-2.5 md:p-3 rounded-lg border text-xs md:text-sm text-zinc-100 transition-all active:scale-95 focus:ring-2 focus:ring-blue-500 min-h-[40px] text-left relative overflow-hidden ${
+                                            dialogClueRevealed === choice.id
+                                              ? 'bg-blue-500/20 border-blue-500 animate-pulse'
+                                              : dialogWarningShown === choice.id
+                                              ? 'bg-red-500/20 border-red-500 animate-shake'
+                                              : 'bg-zinc-800/60 border-zinc-700 hover:bg-zinc-700/60'
+                                          }`}
                                           aria-label={choice.text}
                                         >
+                                          {dialogClueRevealed === choice.id && (
+                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-blue-400 text-[10px] animate-bounce">
+                                              💡
+                                            </span>
+                                          )}
+                                          {dialogWarningShown === choice.id && (
+                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-red-400 text-[10px] animate-pulse">
+                                              ⚠️
+                                            </span>
+                                          )}
                                           {choice.text}
                                         </button>
                                       ))}
@@ -1545,86 +1609,93 @@ function GameContent() {
                 </div>
               </div>
 
-              {/* Desktop Right Column: HUD, Power-ups, Briefing */}
-              <div className="hidden md:flex flex-col w-56 lg:w-72 xl:w-96 shrink-0 space-y-3 lg:space-y-6">
+              {/* Desktop/Tablet Right Column: HUD, Power-ups, Briefing - скрыт на мобильных */}
+              <div className="hidden lg:flex flex-col w-56 xl:w-72 2xl:w-80 shrink-0 space-y-3 xl:space-y-4">
                 {/* HUD Card */}
-                <div className="bg-zinc-900/60 border border-zinc-800/50 p-4 lg:p-8 rounded-[2rem] lg:rounded-[2.5rem] backdrop-blur-xl space-y-3 lg:space-y-6 shadow-2xl relative group/hud">
+                <div className="bg-zinc-900/60 border border-zinc-800/50 p-4 xl:p-6 rounded-2xl backdrop-blur-xl space-y-3 shadow-2xl relative group/hud">
                   <button 
                     onClick={() => setShowExitConfirm(true)}
                     onTouchStart={() => setShowExitConfirm(true)}
-                    className="absolute -top-3 -right-3 p-3 bg-red-500 text-white rounded-2xl transition-all hover:scale-110 shadow-xl z-10 focus:ring-2 focus:ring-red-500 min-h-[44px]"
+                    className="absolute -top-2 -right-2 p-2 sm:p-3 bg-red-500 text-white rounded-xl sm:rounded-2xl transition-all hover:scale-110 shadow-xl z-10 focus:ring-2 focus:ring-red-500"
                     aria-label="Выйти в главное меню"
                   >
-                    <Home className="w-5 h-5 lg:w-6 lg:h-6" aria-label="Иконка дома" />
+                    <Home className="w-4 h-4 sm:w-5 sm:h-5" aria-label="Иконка дома" />
                   </button>
                   <div className="flex justify-between items-center">
-                    <div className="flex gap-1 lg:gap-2">
+                    <div className="flex gap-1">
                       {[...Array(3)].map((_, i) => (
-                        <Heart key={i} className={`w-4 h-4 lg:w-7 lg:h-7 ${i < health ? 'text-red-500 fill-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'text-zinc-800'}`} />
+                        <Heart key={i} className={`w-4 h-4 sm:w-5 sm:h-5 ${i < health ? 'text-red-500 fill-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'text-zinc-800'}`} />
                       ))}
                     </div>
-                    <div className={`text-xl lg:text-4xl font-black font-mono tracking-tighter ${isFrozen ? 'text-blue-400' : 'text-purple-500'}`}>
+                    <div className={`text-xl font-black font-mono tracking-tighter ${isFrozen ? 'text-blue-400' : 'text-purple-500'}`}>
                       {timeLeft < 10 ? `0${timeLeft}` : timeLeft}
                     </div>
                   </div>
-                  <div className="flex justify-between items-center border-t border-zinc-800/50 pt-2 lg:pt-4">
-                    <div className="text-xs lg:text-xs font-black text-zinc-500 uppercase tracking-widest">Комбо</div>
-                    <div className="text-base lg:text-2xl font-black text-yellow-500 italic">x{combo}</div>
+                  <div className="flex justify-between items-center border-t border-zinc-800/50 pt-2">
+                    <div className="text-xs font-black text-zinc-500 uppercase tracking-widest">Комбо</div>
+                    <motion.div 
+                      key={combo}
+                      initial={{ scale: 1.5 }}
+                      animate={{ scale: 1 }}
+                      className={`text-base font-black italic ${combo >= 3 ? 'text-yellow-400 animate-pulse' : 'text-yellow-500'}`}
+                    >
+                      x{combo}
+                    </motion.div>
                   </div>
                 </div>
 
-                <div id="tools-card" className="bg-zinc-900/60 border border-zinc-800/50 p-4 lg:p-8 rounded-[2rem] lg:rounded-[2.5rem] backdrop-blur-xl space-y-2 lg:space-y-4 shadow-2xl">
-                  <h4 className="text-xs lg:text-xs font-black text-zinc-500 uppercase tracking-[0.2em] mb-1 lg:mb-4">Инструменты</h4>
-                  <div className="grid grid-cols-1 gap-1.5 lg:gap-3">
+                <div id="tools-card" className="bg-zinc-900/60 border border-zinc-800/50 p-4 xl:p-6 rounded-2xl backdrop-blur-xl space-y-2 shadow-2xl">
+                  <h4 className="text-xs font-black text-zinc-500 uppercase tracking-[0.2em] mb-2">Инструменты</h4>
+                  <div className="grid grid-cols-1 gap-2">
                     <button 
                       onClick={() => usePowerUp('magnifier')}
                       onTouchStart={() => usePowerUp('magnifier')}
                       disabled={powerUps.magnifier === 0 || showHint || isVoicePlaying || scenario.type === ScenarioType.VOICE}
-                      className={`flex items-center justify-between p-2 lg:p-5 rounded-xl lg:rounded-2xl border transition-all focus:ring-2 focus:ring-blue-500 min-h-[44px] ${powerUps.magnifier > 0 && !isVoicePlaying && !showHint && scenario.type !== ScenarioType.VOICE ? 'bg-zinc-950 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
+                      className={`flex items-center justify-between p-2 sm:p-3 rounded-xl border transition-all focus:ring-2 focus:ring-blue-500 min-h-[40px] sm:min-h-[44px] ${activePowerUp === 'magnifier' ? 'animate-pulse border-blue-400 glow-cyan' : powerUps.magnifier > 0 && !isVoicePlaying && !showHint && scenario.type !== ScenarioType.VOICE ? 'bg-zinc-950 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
                       aria-label="Использовать анализ"
                     >
-                      <div className="flex items-center gap-2 lg:gap-4">
-                        <Search className="w-4 h-4 lg:w-7 lg:h-7" aria-label="Иконка поиска" />
-                        <span className="text-xs lg:text-base font-black uppercase tracking-tight">Анализ</span>
+                      <div className="flex items-center gap-2">
+                        <Search className="w-4 h-4 sm:w-5 sm:h-5" aria-label="Иконка поиска" />
+                        <span className="text-xs sm:text-sm font-black uppercase tracking-tight">Анализ</span>
                       </div>
-                      <span className="text-sm lg:text-xl font-black font-mono">{powerUps.magnifier}</span>
+                      <span className="text-sm font-black font-mono">{powerUps.magnifier}</span>
                     </button>
                     <button 
                       onClick={() => usePowerUp('freeze')}
                       onTouchStart={() => usePowerUp('freeze')}
                       disabled={powerUps.freeze === 0 || isFrozen || isVoicePlaying}
-                      className={`flex items-center justify-between p-2 lg:p-5 rounded-xl lg:rounded-2xl border transition-all focus:ring-2 focus:ring-cyan-500 min-h-[44px] ${powerUps.freeze > 0 && !isVoicePlaying && !isFrozen ? 'bg-zinc-950 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
+                      className={`flex items-center justify-between p-2 sm:p-3 rounded-xl border transition-all focus:ring-2 focus:ring-cyan-500 min-h-[40px] sm:min-h-[44px] ${activePowerUp === 'freeze' ? 'animate-pulse border-cyan-400 glow-cyan' : powerUps.freeze > 0 && !isVoicePlaying && !isFrozen ? 'bg-zinc-950 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
                       aria-label="Использовать заморозку"
                     >
-                      <div className="flex items-center gap-2 lg:gap-4">
-                        <Snowflake className="w-4 h-4 lg:w-7 lg:h-7" aria-label="Иконка снежинки" />
-                        <span className="text-xs lg:text-base font-black uppercase tracking-tight">Заморозка</span>
+                      <div className="flex items-center gap-2">
+                        <Snowflake className="w-4 h-4 sm:w-5 sm:h-5" aria-label="Иконка снежинки" />
+                        <span className="text-xs sm:text-sm font-black uppercase tracking-tight">Заморозка</span>
                       </div>
-                      <span className="text-sm lg:text-xl font-black font-mono">{powerUps.freeze}</span>
+                      <span className="text-sm font-black font-mono">{powerUps.freeze}</span>
                     </button>
                     <button 
                       onClick={() => usePowerUp('call')}
                       onTouchStart={() => usePowerUp('call')}
-                      disabled={powerUps.call === 0 || (investigated.sender && investigated.url) || isVoicePlaying}
-                      className={`flex items-center justify-between p-2 lg:p-5 rounded-xl lg:rounded-2xl border transition-all focus:ring-2 focus:ring-purple-500 min-h-[44px] ${powerUps.call > 0 && !isVoicePlaying && !(investigated.sender && investigated.url) ? 'bg-zinc-950 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
+                      disabled={powerUps.call === 0 || (investigated.sender && investigated.url) || isVoicePlaying || scenario.type === ScenarioType.DIALOG || scenario.type === ScenarioType.TRACING}
+                      className={`flex items-center justify-between p-2 sm:p-3 rounded-xl border transition-all focus:ring-2 focus:ring-purple-500 min-h-[40px] sm:min-h-[44px] ${activePowerUp === 'call' ? 'animate-pulse border-purple-400 glow-purple' : powerUps.call > 0 && !isVoicePlaying && !(investigated.sender && investigated.url) && scenario.type !== ScenarioType.DIALOG && scenario.type !== ScenarioType.TRACING ? 'bg-zinc-950 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
                       aria-label="Использовать связь"
                     >
-                      <div className="flex items-center gap-2 lg:gap-4">
-                        <Radio className="w-4 h-4 lg:w-7 lg:h-7" aria-label="Иконка радио" />
-                        <span className="text-xs lg:text-base font-black uppercase tracking-tight">Связь</span>
+                      <div className="flex items-center gap-2">
+                        <Radio className="w-4 h-4 sm:w-5 sm:h-5" aria-label="Иконка радио" />
+                        <span className="text-xs sm:text-sm font-black uppercase tracking-tight">Связь</span>
                       </div>
-                      <span className="text-sm lg:text-xl font-black font-mono">{powerUps.call}</span>
+                      <span className="text-sm font-black font-mono">{powerUps.call}</span>
                     </button>
                   </div>
                 </div>
 
                 {/* Briefing Card */}
-                <div id="briefing-card" className={`p-4 lg:p-6 rounded-[2rem] lg:rounded-[2.5rem] border text-xs md:text-sm lg:text-base font-mono leading-relaxed flex-1 min-h-0 overflow-hidden shadow-2xl ${scenario.isSpecialMission ? 'bg-red-500/10 border-red-500/50 text-red-400 animate-pulse' : 'bg-zinc-900/60 border-zinc-800/50 text-zinc-400'}`}>
-                  <div className="flex items-center gap-2 lg:gap-3 mb-1 lg:mb-3 shrink-0">
-                    <ShieldAlert className="w-3 h-3 lg:w-5 lg:h-5" aria-label="Иконка предупреждения" />
-                    <span className="font-black uppercase tracking-[0.2em] text-xs md:text-xs lg:text-sm">Брифинг</span>
+                <div id="briefing-card" className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border text-xs sm:text-sm font-mono leading-relaxed flex-1 min-h-0 overflow-hidden shadow-2xl ${scenario.isSpecialMission ? 'bg-red-500/10 border-red-500/50 text-red-400 animate-pulse' : 'bg-zinc-900/60 border-zinc-800/50 text-zinc-400'}`}>
+                  <div className="flex items-center gap-2 mb-2 shrink-0">
+                    <ShieldAlert className="w-3 h-3 sm:w-4 sm:h-4" aria-label="Иконка предупреждения" />
+                    <span className="font-black uppercase tracking-[0.2em] text-xs">Брифинг</span>
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 overflow-hidden">
                     {scenario.briefing}
                   </div>
                 </div>
@@ -1632,28 +1703,28 @@ function GameContent() {
                 <button 
                   onClick={() => setShowFAQ(true)}
                   onTouchStart={() => setShowFAQ(true)}
-                  className="w-full py-2 lg:py-4 bg-zinc-900/80 border border-zinc-800/50 text-zinc-500 hover:text-white hover:bg-zinc-800 transition-all rounded-[1.2rem] lg:rounded-[1.5rem] flex items-center justify-center gap-2 lg:gap-3 shadow-xl focus:ring-2 focus:ring-zinc-500 min-h-[44px]"
+                  className="w-full py-2 sm:py-3 bg-zinc-900/80 border border-zinc-800/50 text-zinc-500 hover:text-white hover:bg-zinc-800 transition-all rounded-xl sm:rounded-xl flex items-center justify-center gap-2 sm:gap-3 shadow-xl focus:ring-2 focus:ring-zinc-500 min-h-[40px] sm:min-h-[44px]"
                   aria-label="Показать помощь"
                 >
-                  <HelpCircle className="w-4 h-4 lg:w-6 lg:h-6" aria-label="Иконка помощи" />
-                  <span className="text-xs md:text-sm lg:text-base font-black uppercase tracking-widest">Помощь</span>
+                  <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5" aria-label="Иконка помощи" />
+                  <span className="text-xs sm:text-sm font-black uppercase tracking-widest">Помощь</span>
                 </button>
               </div>
 
             {/* Tutorial Overlay */}
             {isTutorialActive && (
-              <div className={`absolute inset-0 z-[200] pointer-events-none flex p-4 transition-all duration-500 ${
-                tutorialStep === 0 ? 'justify-center items-end pb-20 md:items-center md:pb-0 md:justify-start md:pl-[30%]' :
-                tutorialStep === 1 ? 'justify-center items-center md:justify-end md:pr-[5%]' :
-                tutorialStep === 2 ? 'justify-center items-center md:justify-start md:pl-[5%]' :
-                tutorialStep === 3 ? 'justify-center items-end md:justify-start md:pl-[5%] md:pb-[15%]' :
-                'justify-center items-start pt-20 md:pt-[10%]'
+              <div className={`absolute inset-0 z-[200] pointer-events-none flex p-2 sm:p-4 transition-all duration-500 ${
+                tutorialStep === 0 ? 'justify-center items-end pb-28 sm:pb-32 lg:items-center lg:pb-0 lg:justify-start lg:pl-[30%]' :
+                tutorialStep === 1 ? 'justify-center items-center lg:justify-end lg:pr-[5%]' :
+                tutorialStep === 2 ? 'justify-center items-center lg:justify-start lg:pl-[5%]' :
+                tutorialStep === 3 ? 'justify-center items-end lg:justify-start lg:pl-[5%] lg:pb-[15%]' :
+                'justify-center items-start pt-16 sm:pt-20 lg:pt-[10%]'
               }`}>
                 <motion.div
                   key={tutorialStep}
                   initial={{ opacity: 0, scale: 0.9, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  className="bg-zinc-900 border-2 border-purple-500 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] max-w-[90%] md:max-w-sm w-full max-h-[calc(100vh-100px)] md:max-h-none overflow-y-auto shadow-[0_0_50px_rgba(168,85,247,0.6)] space-y-3 md:space-y-4 relative pointer-events-auto z-[210]"
+                  className="bg-zinc-900 border-2 border-purple-500 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl max-w-[90%] sm:max-w-sm w-full max-h-[calc(100vh-80px)] sm:max-h-none overflow-y-auto shadow-[0_0_50px_rgba(168,85,247,0.6)] space-y-3 sm:space-y-4 relative pointer-events-auto z-[210]"
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-purple-500/20 rounded-xl">
@@ -1679,14 +1750,6 @@ function GameContent() {
                         setIsTutorialActive(false);
                       }
                     }}
-                    onTouchStart={() => {
-                      playSound('click');
-                      if (tutorialStep < 4) {
-                        setTutorialStep(tutorialStep + 1);
-                      } else {
-                        setIsTutorialActive(false);
-                      }
-                    }}
                     className="w-full py-3 bg-purple-500 text-black font-black text-base uppercase tracking-widest rounded-xl hover:bg-purple-400 transition-all active:scale-95 shadow-lg focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                     aria-label={tutorialStep < 4 ? 'Понял' : 'Начать работу'}
                   >
@@ -1696,16 +1759,32 @@ function GameContent() {
 
                 {/* Highlight Effect */}
                 <style dangerouslySetInnerHTML={{ __html: `
-                  #${['stats-card', 'smartphone-card', 'tools-card', 'briefing-card', 'choice-buttons'][tutorialStep]} {
-                    position: relative;
-                    z-index: 150;
-                    box-shadow: 0 0 0 9999px rgba(0,0,0,0.85), 0 0 60px rgba(168,85,247,0.8) !important;
-                    pointer-events: none;
-                    outline: 4px solid #a855f7;
-                    outline-offset: 4px;
-                    border-radius: 2rem;
+                  /* Desktop/Tablet: lg breakpoint (1024px) */
+                  @media (min-width: 1024px) {
+                    #${['stats-card', 'smartphone-card', 'tools-card', 'briefing-card', 'choice-buttons'][tutorialStep]} {
+                      position: relative;
+                      z-index: 150;
+                      box-shadow: 0 0 0 9999px rgba(0,0,0,0.85), 0 0 60px rgba(168,85,247,0.8) !important;
+                      pointer-events: none;
+                      outline: 4px solid #a855f7;
+                      outline-offset: 4px;
+                      border-radius: 1.5rem;
+                    }
                   }
-                  @media (max-width: 768px) {
+                  /* Tablet: between 768px and 1023px */
+                  @media (min-width: 768px) and (max-width: 1023px) {
+                    #${['smartphone-card', 'smartphone-card', 'smartphone-card', 'smartphone-card', 'choice-buttons'][tutorialStep]} {
+                      position: relative;
+                      z-index: 150;
+                      box-shadow: 0 0 0 9999px rgba(0,0,0,0.85), 0 0 60px rgba(168,85,247,0.8) !important;
+                      pointer-events: none;
+                      outline: 4px solid #a855f7;
+                      outline-offset: 4px;
+                      border-radius: 1.5rem;
+                    }
+                  }
+                  /* Mobile: less than 768px */
+                  @media (max-width: 767px) {
                     #${['mobile-hud', 'smartphone-card', 'mobile-hud', 'mobile-briefing', 'choice-buttons'][tutorialStep]} {
                       position: relative;
                       z-index: 150;
@@ -1832,37 +1911,55 @@ function GameContent() {
               key="feedback"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex-1 flex flex-col items-center justify-center space-y-4 md:space-y-8 text-center p-4 overflow-y-auto custom-scrollbar h-full w-full max-w-5xl mx-auto relative"
+              className="flex-1 flex flex-col items-center justify-center space-y-3 sm:space-y-5 lg:space-y-8 text-center p-2 sm:p-4 overflow-y-auto custom-scrollbar h-full w-full max-w-lg sm:max-w-2xl lg:max-w-5xl mx-auto relative"
             >
               <button 
                 onClick={() => setShowExitConfirm(true)}
-                className="absolute top-4 right-4 md:top-8 md:right-8 p-3 bg-red-500 text-white rounded-2xl shadow-xl z-20 hover:bg-red-600 transition-all"
+                className="absolute top-2 right-2 sm:top-4 sm:right-4 p-2 sm:p-3 bg-red-500 text-white rounded-xl sm:rounded-2xl shadow-xl z-20 hover:bg-red-600 transition-all"
                 title="Выйти в меню"
               >
-                <Home className="w-5 h-5 md:w-8 md:h-8" />
+                <Home className="w-4 h-4 sm:w-5 sm:h-5 lg:w-8 lg:h-8" />
               </button>
-              <div className="flex justify-center shrink-0">
-                <div className={`p-4 md:p-8 lg:p-10 rounded-full border-4 ${lastResult?.correct ? 'bg-purple-500/10 border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.3)]' : 'bg-red-500/10 border-red-500 shadow-[0_0_40px_rgba(239,68,68,0.3)]'}`}>
-                  {lastResult?.correct ? <CheckCircle2 className="w-12 h-12 md:w-24 md:h-24 lg:w-32 lg:h-32 text-purple-500" /> : <ShieldAlert className="w-12 h-12 md:w-24 md:h-24 lg:w-32 lg:h-32 text-red-500" />}
+              <motion.div 
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                className="flex justify-center shrink-0"
+              >
+                <div className={`p-3 sm:p-6 lg:p-10 rounded-full border-3 sm:border-4 ${lastResult?.correct ? 'bg-purple-500/10 border-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.3)] animate-pulse-glow' : 'bg-red-500/10 border-red-500 shadow-[0_0_40px_rgba(239,68,68,0.3)] animate-danger-pulse'}`}>
+                  {lastResult?.correct ? <CheckCircle2 className="w-8 h-8 sm:w-16 sm:h-16 lg:w-24 lg:h-24 xl:w-32 xl:h-32 text-purple-500" /> : <ShieldAlert className="w-8 h-8 sm:w-16 sm:h-16 lg:w-24 lg:h-24 xl:w-32 xl:h-32 text-red-500" />}
                 </div>
-              </div>
-              <div className="space-y-3 md:space-y-5 max-w-4xl shrink-0">
-                <h2 className={`text-2xl md:text-5xl lg:text-6xl font-black uppercase italic tracking-tighter leading-none ${lastResult?.correct ? 'text-purple-500' : 'text-red-500'}`}>
+              </motion.div>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="space-y-2 sm:space-y-4 max-w-xl sm:max-w-2xl lg:max-w-4xl shrink-0"
+              >
+                <h2 className={`text-lg sm:text-2xl md:text-4xl lg:text-5xl xl:text-6xl font-black uppercase italic tracking-tighter leading-none ${lastResult?.correct ? 'text-purple-500 animate-pulse' : 'text-red-500 animate-text-glitch'}`}>
                   {lastResult?.message}
                 </h2>
-                <div className="bg-zinc-900/60 p-4 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-zinc-800/50 backdrop-blur-xl shadow-2xl">
-                  <p className="text-zinc-200 text-xs md:text-xl lg:text-2xl leading-relaxed font-medium">
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="bg-zinc-900/60 p-3 sm:p-5 lg:p-8 rounded-xl sm:rounded-2xl border border-zinc-800/50 backdrop-blur-xl shadow-2xl"
+                >
+                  <p className="text-xs sm:text-sm lg:text-xl xl:text-2xl leading-relaxed font-medium">
                     {scenario.explanation}
                   </p>
-                </div>
-              </div>
-              <button 
+                </motion.div>
+              </motion.div>
+              <motion.button 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
                 onClick={nextLevel}
                 className="group inline-flex items-center gap-3 md:gap-6 px-8 md:px-12 py-3 md:py-6 bg-zinc-100 text-black font-black text-base md:text-2xl lg:text-3xl uppercase tracking-widest hover:bg-white transition-all active:scale-95 rounded-xl md:rounded-2xl shadow-2xl shrink-0"
               >
                 Продолжить
                 <ArrowRight className="w-5 h-5 md:w-8 md:h-8 lg:w-10 lg:h-10 group-hover:translate-x-2 transition-transform" />
-              </button>
+              </motion.button>
             </motion.div>
           )}
 
@@ -1940,9 +2037,9 @@ function GameContent() {
                   <div className="space-y-0.5 md:space-y-1 min-w-0">
                     <h3 className="text-zinc-500 font-mono text-[6px] md:text-xs uppercase tracking-widest truncate">Личное дело №2026-РБ</h3>
                     <h2 className={`text-lg md:text-4xl font-black uppercase tracking-tighter truncate ${rank.color}`}>{rank.title}</h2>
-                    <div className="flex items-center gap-2 md:gap-3">
+                      <div className="flex items-center gap-2 md:gap-3">
                       <div className="h-3 md:h-5 w-24 md:w-48 bg-zinc-800 rounded-full overflow-hidden border border-white/10 relative">
-                        <div className={`h-full ${rank.color.replace('text-', 'bg-')} shadow-[0_0_15px_rgba(255,255,255,0.4)] relative`} style={{ width: `${(score % 500) / 5}%` }}>
+                        <div className={`h-full ${rank.color.replace('text-', 'bg-')} shadow-[0_0_15px_rgba(255,255,255,0.4)] relative`} style={{ width: `${Math.min(100, ((totalStats.score + score) % 500) / 5)}%` }}>
                           <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent" />
                         </div>
                       </div>
@@ -2181,34 +2278,34 @@ function GameContent() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 gap-1 w-full max-w-xs md:max-w-md">
-                  {!isNewGamePlus && health > 0 ? (
-                    <>
-                      <button
-                        onClick={() => {
-                          playSound('click');
-                          setIsNewGamePlus(true);
-                          setCurrentLevel(0);
-                          setCombo(1);
-                          setStats({ correct: 0, total: 0 });
-                          setEvidence([]);
-                          setHealth(3);
-                          setTimeLeft(120);
-                          setScore(0);
-                          setGameState('STORY');
-                        }}
-                        className="w-full py-2 md:py-4 bg-purple-500 text-black font-black uppercase tracking-[0.15em] hover:bg-purple-400 transition-all rounded-xl md:rounded-2xl text-[8px] md:text-base shadow-[0_10px_20px_rgba(168,85,247,0.3)] active:scale-95"
-                      >
-                        Уровень 2: Режим Эксперта
-                      </button>
-                      <button
-                        onClick={() => setGameState('START')}
-                        className="w-full py-2 md:py-4 bg-zinc-900 text-white font-black uppercase tracking-[0.15em] hover:bg-zinc-800 transition-all rounded-xl md:rounded-2xl border border-zinc-800 text-[8px] md:text-base active:scale-95"
-                      >
-                        В главное меню
-                      </button>
-                    </>
-                  ) : (
+                  <div className="grid grid-cols-1 gap-1 w-full max-w-xs md:max-w-md">
+                    {!isNewGamePlus && health > 0 ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            playSound('click');
+                            setIsNewGamePlus(true);
+                            setCurrentLevel(0);
+                            setCombo(1);
+                            setStats({ correct: 0, total: 0 });
+                            setEvidence([]);
+                            setHealth(3);
+                            setTimeLeft(120);
+                            setScore(0);
+                            setGameState('STORY');
+                          }}
+                          className="w-full py-2 md:py-4 bg-purple-500 text-black font-black uppercase tracking-[0.15em] hover:bg-purple-400 transition-all rounded-xl md:rounded-2xl text-[8px] md:text-base shadow-[0_10px_20px_rgba(168,85,247,0.3)] active:scale-95"
+                        >
+                          Уровень 2: Режим Эксперта
+                        </button>
+                        <button
+                          onClick={() => setGameState('START')}
+                          className="w-full py-2 md:py-4 bg-zinc-900 text-white font-black uppercase tracking-[0.15em] hover:bg-zinc-800 transition-all rounded-xl md:rounded-2xl border border-zinc-800 text-[8px] md:text-base active:scale-95"
+                        >
+                          В главное меню
+                        </button>
+                      </>
+                    ) : (
                     <>
                       <button
                         onClick={() => window.location.reload()}
@@ -2356,14 +2453,32 @@ function GameContent() {
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4 overflow-hidden">
                       {[
-                        { icon: Search, color: 'blue', title: 'Анализ', desc: 'Подсвечивает подозрительные детали.' },
-                        { icon: Snowflake, color: 'cyan', title: 'Заморозка', desc: 'Останавливает время на 10 секунд.' },
-                        { icon: Radio, color: 'purple', title: 'Связь', desc: 'ИИ «ЩИТ» даст прямую подсказку.' }
+                        {
+                          icon: Search,
+                          title: 'Анализ',
+                          desc: 'Подсвечивает подозрительные детали.',
+                          borderClass: 'hover:border-blue-500/30',
+                          textClass: 'text-blue-400'
+                        },
+                        {
+                          icon: Snowflake,
+                          title: 'Заморозка',
+                          desc: 'Останавливает время на 10 секунд.',
+                          borderClass: 'hover:border-cyan-500/30',
+                          textClass: 'text-cyan-400'
+                        },
+                        {
+                          icon: Radio,
+                          title: 'Связь',
+                          desc: 'ИИ «ЩИТ» даст прямую подсказку.',
+                          borderClass: 'hover:border-purple-500/30',
+                          textClass: 'text-purple-400'
+                        }
                       ].map((tool, i) => (
-                        <div key={i} className={`flex flex-row md:flex-col items-center md:items-start gap-2 md:gap-2 p-2 md:p-4 bg-zinc-950 rounded-xl border border-zinc-800 hover:border-${tool.color}-500/30 transition-all group overflow-hidden`}>
-                          <tool.icon className={`w-4 h-4 md:w-6 md:h-6 text-${tool.color}-400 group-hover:scale-110 transition-transform shrink-0`} />
+                        <div key={i} className={`flex flex-row md:flex-col items-center md:items-start gap-2 md:gap-2 p-2 md:p-4 bg-zinc-950 rounded-xl border border-zinc-800 ${tool.borderClass} transition-all group overflow-hidden`}>
+                          <tool.icon className={`w-4 h-4 md:w-6 md:h-6 ${tool.textClass} group-hover:scale-110 transition-transform shrink-0`} />
                           <div>
-                            <h4 className={`font-black text-${tool.color}-400 text-[8px] md:text-xs uppercase`}>{tool.title}</h4>
+                            <h4 className={`font-black ${tool.textClass} text-[8px] md:text-xs uppercase`}>{tool.title}</h4>
                             <p className="text-zinc-500 text-[7px] md:text-[10px] mt-0.5 leading-tight line-clamp-1 md:line-clamp-2">{tool.desc}</p>
                           </div>
                         </div>
