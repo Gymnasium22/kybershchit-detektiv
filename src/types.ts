@@ -13,10 +13,8 @@ export interface Scenario {
   id: number;
   type: ScenarioType;
   sender: string;
-  realSender?: string;
   content: string;
   audioUrl?: string; // URL for real audio recordings
-  realUrl?: string;
   isPhishing: boolean;
   hint: string;
   explanation: string;
@@ -27,8 +25,33 @@ export interface Scenario {
     description: string;
     realExample?: string;
   };
-  dialogTree?: any[]; // For DIALOG type scenarios
-  tracingMap?: any[]; // For TRACING type scenarios
+  dialogTree?: DialogNode[];
+  tracingMap?: TracingNode[];
+}
+
+export interface DialogChoice {
+  id: string;
+  text: string;
+  nextNodeId: string;
+  points?: number;
+  isRisky?: boolean;
+  revealsClue?: boolean;
+}
+
+export interface DialogNode {
+  id: string;
+  speaker: 'scammer' | 'system' | 'user';
+  text: string;
+  choices?: DialogChoice[];
+  isCorrect?: boolean;
+}
+
+export interface TracingNode {
+  id: string;
+  x: number;
+  y: number;
+  type: 'start' | 'intermediate' | 'fake' | 'end';
+  connectedTo?: string[];
 }
 
 export const SCENARIOS: Scenario[] = [
@@ -36,9 +59,7 @@ export const SCENARIOS: Scenario[] = [
     id: 1,
     type: ScenarioType.SMS,
     sender: "БЕЛБАНК",
-    realSender: "+375 (25) 999-00-11",
     content: "Ваша карта заблокирована. Подтвердите личность для разблокировки: http://bel-bank.info/id",
-    realUrl: "http://192.168.1.1/malware/steal.php",
     isPhishing: true,
     hint: "Официальные банки РБ используют домен .by. Ссылка .info — это ловушка.",
     explanation: "Классический 'смишинг'. Банки никогда не присылают ссылки для ввода личных данных в СМС.",
@@ -52,9 +73,7 @@ export const SCENARIOS: Scenario[] = [
     id: 2,
     type: ScenarioType.SOCIAL,
     sender: "Куфар_Поддержка",
-    realSender: "kufar_bot_real_scam",
     content: "Товар оплачен! Получите средства по ссылке: https://kufar.pay-delivery.site/get-money",
-    realUrl: "https://kufar-fake-pay.ru/card-details",
     isPhishing: true,
     hint: "Настоящий Куфар никогда не переводит на сторонние сайты для получения денег. Домен pay-delivery.site — подделка.",
     explanation: "Это самая частая схема на торговых площадках. Мошенники создают копию страницы оплаты.",
@@ -85,7 +104,6 @@ export const SCENARIOS: Scenario[] = [
     type: ScenarioType.WEBSITE,
     sender: "Браузер",
     content: "https://mvd.gov.by.secure-check.com/fine-payment",
-    realUrl: "https://scam-redirect.net/pay",
     isPhishing: true,
     hint: "Смотрите на основной домен перед первым слешем. Это secure-check.com, а не gov.by.",
     explanation: "Мошенники маскируются под госорганы, чтобы запугать штрафами и заставить быстро оплатить их.",
@@ -113,9 +131,7 @@ export const SCENARIOS: Scenario[] = [
     id: 6,
     type: ScenarioType.SOCIAL,
     sender: "BrawlStars_Gems_Free",
-    realSender: "user_9921_scammer",
     content: "Привет! Хочешь 1000 гемов бесплатно? Заходи на наш сайт и вводи свой Supercell ID: http://brawl-stars-gems.top",
-    realUrl: "http://phishing-site.com/login",
     isPhishing: true,
     hint: "Бесплатных гемов не бывает. Домен .top — признак мошенничества.",
     explanation: "Это типичный фишинг для кражи игровых аккаунтов. Мошенники перепродают ваши аккаунты другим игрокам.",
@@ -131,7 +147,6 @@ export const SCENARIOS: Scenario[] = [
     id: 7,
     type: ScenarioType.SMS,
     sender: "Работа_Минск",
-    realSender: "+375 (44) 111-22-33",
     content: "Требуются курьеры! Зарплата от 2000 BYN в неделю. Опыт не нужен. Пиши в Telegram: @easy_money_rb",
     isPhishing: true,
     hint: "Слишком высокая зарплата за простую работу — признак вовлечения в преступную деятельность (наркошопы).",
@@ -147,9 +162,7 @@ export const SCENARIOS: Scenario[] = [
     id: 8,
     type: ScenarioType.SOCIAL,
     sender: "Roblox_Admin_Support",
-    realSender: "roblox_fake_helper",
     content: "Ваш аккаунт будет удален через 24 часа из-за нарушения правил. Подтвердите владение: https://roblox.com-security.net/verify",
-    realUrl: "https://scam-roblox.ru/auth",
     isPhishing: true,
     hint: "Официальный домен Roblox — roblox.com. Любые дефисы и приписки — это подделка.",
     explanation: "Мошенники используют страх потери аккаунта, чтобы заставить вас ввести пароль на их сайте.",
@@ -178,7 +191,6 @@ export const SCENARIOS: Scenario[] = [
     id: 10,
     type: ScenarioType.SMS,
     sender: "MVD_BELARUS",
-    realSender: "MVD",
     content: "Внимание! Проводится акция 'КиберДети'. Узнайте, как защитить свой смартфон на официальном портале: https://mvd.gov.by/ru/news/9901",
     isPhishing: false,
     hint: "Домен gov.by и имя отправителя MVD соответствуют официальным источникам.",
@@ -222,9 +234,7 @@ export const SCENARIOS: Scenario[] = [
     id: 13,
     type: ScenarioType.SOCIAL,
     sender: "Влад Бумага A4 (Розыгрыш)",
-    realSender: "a4_giveaway_bot_2026",
     content: "ТЫ ВЫИГРАЛ IPHONE 17! 📱 Чтобы забрать приз, оплати только доставку 10 рублей: https://a4-prizes.net/delivery",
-    realUrl: "https://scam-billing.com/pay",
     isPhishing: true,
     hint: "Знаменитости никогда не просят оплатить доставку призов. Домен .net — подделка.",
     explanation: "Это 'скам' от имени блогеров. Мошенники используют популярность звезд для обмана детей.",
@@ -239,7 +249,6 @@ export const SCENARIOS: Scenario[] = [
     id: 15,
     type: ScenarioType.SMS,
     sender: "РОНАР",
-    realSender: "РОНАР",
     content: "Напоминаем: завтра в 14:00 состоится плановое техобслуживание. Время работы: 10:00-16:00. Приносим извинения за неудобства.",
     isPhishing: false,
     hint: "Ронар — официальный оператор. Это плановое уведомление без ссылок и запросов данных.",
@@ -254,9 +263,7 @@ export const SCENARIOS: Scenario[] = [
     id: 14,
     type: ScenarioType.EMAIL,
     sender: "Министерство Образования",
-    realSender: "admin@minedu-gov.com",
     content: "Приглашаем принять участие в олимпиаде 'Кибер-Гений 2026'. Регистрация по ссылке: http://olymp-check.com/register",
-    realUrl: "http://malicious-site.by/steal-data",
     isPhishing: true,
     hint: "Официальные письма от министерства приходят с доменов .gov.by. Домен .com — подозрительный.",
     explanation: "Мошенники используют тему образования, чтобы собрать данные школьников и их родителей.",
@@ -284,16 +291,11 @@ export const SCENARIOS: Scenario[] = [
   }
 ];
 
-// ============================================
-// НОВЫЕ СЦЕНАРИИ ДЛЯ БЕЛАРУСИ 2026
-// (Открываются после прохождения основной игры)
-// ============================================
 export const NEW_SCENARIOS: Scenario[] = [
   {
     id: 101,
     type: ScenarioType.SOCIAL,
     sender: "Telegram: Кристина_Бот",
-    realSender: "@crypto_kristina_bot",
     content: "Привет! Я Кристина, мне 22, я из Минска 💋 Вижу, ты тоже в чате 'Знакомства РБ'. Давай пообщаемся в личном чате? Только не отправляй мне фото документов — в Telegram много мошенников! 😉",
     isPhishing: true,
     hint: "Мошенница сама предупреждает не отправлять документы — это манипуляция, чтобы вы расслабились.",
@@ -375,7 +377,6 @@ export const NEW_SCENARIOS: Scenario[] = [
     id: 104,
     type: ScenarioType.SMS,
     sender: "Cryptobel",
-    realSender: "+375 (25) 000-00-01",
     content: "🚀 BITCOIN пробил $150,000! Успей купить на cryptobel.by — официальный партнёр Binance в РБ. Внеси до 31 марта и получи +50% к депозиту!",
     isPhishing: true,
     hint: "Binance не имеет официальных партнёров в РБ. Домен .by зарегистрирован 3 дня назад.",
@@ -391,7 +392,6 @@ export const NEW_SCENARIOS: Scenario[] = [
     type: ScenarioType.WEBSITE,
     sender: "Браузер",
     content: "https://president.gov.by.official-news.net/appeal-2026",
-    realUrl: "https://fake-gov-site.net/steal",
     isPhishing: true,
     hint: "Официальный сайт президента — president.gov.by без каких-либо приставок.",
     explanation: "Фишинг под госорганы — одна из самых опасных схем. Мошенники создают копии сайтов министерств для кражи данных.",
@@ -483,7 +483,6 @@ export const NEW_SCENARIOS: Scenario[] = [
     id: 108,
     type: ScenarioType.SOCIAL,
     sender: "Instagram: bel_transfer_2026",
-    realSender: "@bel_transfer_2026",
     content: "💸 ОБМЕН ВАЛЮТЫ ПО ВЫГОДНОМУ КУРСУ! USD/EUR/USDT. Быстро, анонимно, без комиссий! Пиши в Direct 📩",
     isPhishing: true,
     hint: "Официальный обменник не работает через Instagram. Это чёрный рынок.",

@@ -32,9 +32,15 @@ import {
   QrCode,
   Home
 } from 'lucide-react';
-import { SCENARIOS, ScenarioType, NEW_SCENARIOS } from './types';
+import { DialogChoice, DialogNode, NEW_SCENARIOS, SCENARIOS, ScenarioType, TracingNode } from './types';
 
-type GameState = 'START' | 'STORY' | 'TUTORIAL' | 'PLAYING' | 'FEEDBACK' | 'EDUCATIONAL' | 'MINIGAME' | 'END' | 'GLOSSARY' | 'PROFILE' | 'LOADING';
+type GameState = 'START' | 'STORY' | 'PLAYING' | 'FEEDBACK' | 'EDUCATIONAL' | 'MINIGAME' | 'END' | 'GLOSSARY' | 'PROFILE' | 'LOADING';
+type DialogMessage = {
+  id: string;
+  speaker: 'scammer' | 'system' | 'user';
+  text: string;
+  isCorrect?: boolean;
+};
 
 export default function App() {
   return (
@@ -88,26 +94,24 @@ function GameContent() {
 
   const [isTutorialActive, setIsTutorialActive] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
-  const [userInteracted, setUserInteracted] = useState(false); // Отслеживаем первое взаимодействие
-  const [voiceAudioFailed, setVoiceAudioFailed] = useState(false); // Если аудио не запустилось
-  const [isNewGamePlus, setIsNewGamePlus] = useState(false); // Режим новой смены после прохождения
-  const [isMobile, setIsMobile] = useState(false); // Мобильное устройство
-  const [currentDialogNodeId, setCurrentDialogNodeId] = useState('start'); // Текущий узел диалога
-  const [dialogHistory, setDialogHistory] = useState<string[]>([]); // История узлов диалога
-  const [userResponses, setUserResponses] = useState<{nodeId: string; text: string}[]>([]); // Ответы пользователя в диалоге
-  const [dialogScore, setDialogScore] = useState(0); // Очки за диалог
-  const [tracingSelectedPath, setTracingSelectedPath] = useState<string[]>([]); // Выбранный путь в трассировке
+  const [userInteracted, setUserInteracted] = useState(false);
+  const [voiceAudioFailed, setVoiceAudioFailed] = useState(false);
+  const [isNewGamePlus, setIsNewGamePlus] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [currentDialogNodeId, setCurrentDialogNodeId] = useState('start');
+  const [dialogHistory, setDialogHistory] = useState<string[]>([]);
+  const [userResponses, setUserResponses] = useState<{nodeId: string; text: string}[]>([]);
+  const [dialogScore, setDialogScore] = useState(0);
+  const [tracingSelectedPath, setTracingSelectedPath] = useState<string[]>([]);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
-  const audioHandlersRef = React.useRef<{ onended?: ((this: HTMLAudioElement, ev: Event) => any) | null; onerror?: ((this: HTMLAudioElement, ev: Event) => any) | null }>({});
+  const audioHandlersRef = React.useRef<{ onended?: ((this: HTMLAudioElement, ev: Event) => void) | null; onerror?: ((this: HTMLAudioElement, ev: Event) => void) | null }>({});
   const bgMusicRef = React.useRef<HTMLAudioElement | null>(null);
   const bgMusicResumeListenersRef = React.useRef<(() => void) | null>(null);
 
-  // Определяем мобильное устройство
   useEffect(() => {
     setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
   }, []);
 
-  // Используем разные сценарии для обычной игры и новой смены
   const scenariosList = isNewGamePlus ? NEW_SCENARIOS : SCENARIOS;
   const scenario = scenariosList[currentLevel];
 
@@ -147,7 +151,7 @@ function GameContent() {
   const playSound = useCallback((type: 'correct' | 'wrong' | 'click' | 'win' | 'lose' | 'powerup' | 'minigame' | 'ringing') => {
     if (!isSoundEnabled) return;
     try {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioContextClass) return;
       
       const ctx = new AudioContextClass();
@@ -227,7 +231,6 @@ function GameContent() {
         osc.stop(now + 0.5);
         soundDurationSec = 0.5;
       } else if (type === 'win') {
-        // Radio static effect
         const noise = ctx.createBufferSource();
         const bufferSize = ctx.sampleRate * 0.5;
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -265,8 +268,7 @@ function GameContent() {
       window.setTimeout(() => {
         ctx.close().catch(() => {});
       }, Math.ceil(soundDurationSec * 1000) + 200);
-    } catch (e) {
-      console.error("Audio playback failed", e);
+    } catch {
     }
   }, [isSoundEnabled]);
 
@@ -274,7 +276,6 @@ function GameContent() {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
-      // Удаляем обработчики
       if (audioHandlersRef.current.onended) {
         audioRef.current.removeEventListener('ended', audioHandlersRef.current.onended);
       }
@@ -287,23 +288,20 @@ function GameContent() {
   }, []);
 
   const playAudioFile = useCallback(async (url: string, onEnd?: () => void) => {
-    // Если звук выключен, не пытаемся играть
     if (!isSoundEnabled) {
       setVoiceAudioFailed(true);
       return;
     }
 
-    stopAudio(); // останавливаем предыдущее воспроизведение
+    stopAudio();
 
     try {
-      // Используем один аудио-объект для мобильной оптимизации
       if (!audioRef.current) {
         audioRef.current = new Audio();
       }
       
       const audio = audioRef.current;
       
-      // Очищаем старые обработчики перед переиспользованием
       if (audioHandlersRef.current.onended) {
         audio.removeEventListener('ended', audioHandlersRef.current.onended);
       }
@@ -312,22 +310,19 @@ function GameContent() {
       }
       audioHandlersRef.current = {};
       
-      // Сбрасываем состояние перед загрузкой нового источника
       audio.currentTime = 0;
       audio.src = url;
-      audio.currentTime = 0; // После смены src нужно сбросить позицию
+      audio.currentTime = 0;
       audio.volume = 1.0;
       
       setIsVoicePlaying(true);
 
-      // Приостанавливаем фоновую музыку
       let bgMusicWasPlaying = false;
       if (bgMusicRef.current && !bgMusicRef.current.paused) {
         bgMusicWasPlaying = true;
         bgMusicRef.current.pause();
       }
       
-      // Дожидаемся, пока аудио будет готово к воспроизведению
       await new Promise<void>((resolve, reject) => {
         let resolved = false;
         const canPlay = () => {
@@ -351,13 +346,11 @@ function GameContent() {
         audio.load();
       });
 
-      // Запускаем воспроизведение
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         await playPromise;
       }
 
-      // Устанавливаем новые обработчики после успешного запуска
       const onended = () => {
         setIsVoicePlaying(false);
         setVoiceAudioFailed(false);
@@ -367,8 +360,7 @@ function GameContent() {
         if (onEnd) onEnd();
       };
 
-      const onerror = (e: Event) => {
-        console.error(`Audio error for ${url}:`, e);
+      const onerror = () => {
         setIsVoicePlaying(false);
         setVoiceAudioFailed(true);
         if (isSoundEnabled && bgMusicRef.current && bgMusicWasPlaying) {
@@ -379,14 +371,11 @@ function GameContent() {
       audio.addEventListener('ended', onended);
       audio.addEventListener('error', onerror);
       
-      // Сохраняем ссылки на обработчики для удаления позже
       audioHandlersRef.current = { onended, onerror };
-    } catch (err) {
-      console.error('Audio playback failed:', err);
+    } catch {
       setIsVoicePlaying(false);
       setVoiceAudioFailed(true);
-      
-      // На мобильных вешаем обработчики для повторного запуска при следующем взаимодействии
+
       const enableAudio = () => {
         playAudioFile(url, onEnd).catch(() => {});
         window.removeEventListener('click', enableAudio);
@@ -403,20 +392,18 @@ function GameContent() {
     playSound('click');
     setUserInteracted(true);
     
-    // Разблокировка аудио для мобильных браузеров
     const dummyAudio = new Audio();
     dummyAudio.play().then(() => {
       dummyAudio.pause();
     }).catch(() => {});
     
     setGameState('STORY');
-    // Убираем setTimeout – аудио запустится сразу после клика
     playAudioFile('audio/briefing.mp3');
   }, [playSound, playAudioFile]);
 
   const startInvestigation = useCallback((withTutorial = false) => {
     playSound('click');
-    stopAudio(); // Останавливаем любое текущее аудио
+    stopAudio();
     setGameState('PLAYING');
     setCurrentLevel(0);
     setScore(0);
@@ -428,11 +415,11 @@ function GameContent() {
     setInvestigated({ sender: false, url: false });
     setEvidence([]);
     setPowerUps({ magnifier: 3, freeze: 2, call: 1 });
-    setCurrentDialogNodeId('start'); // Сбросить состояние диалога
-    setDialogHistory(['start']); // Сбросить историю диалога
-    setUserResponses([]); // Сбросить ответы пользователя
-    setDialogScore(0); // Сбросить очки диалога
-    setTracingSelectedPath([]); // Сбросить путь трассировки
+    setCurrentDialogNodeId('start');
+    setDialogHistory(['start']);
+    setUserResponses([]);
+    setDialogScore(0);
+    setTracingSelectedPath([]);
     if (withTutorial) {
       setIsTutorialActive(true);
       setTutorialStep(0);
@@ -456,7 +443,7 @@ function GameContent() {
   const handleChoice = useCallback((isPhishing: boolean) => {
     if (gameState !== 'PLAYING') return;
     
-    stopAudio(); // Останавливаем голосовое сообщение при выборе
+    stopAudio();
     
     const correct = isPhishing === scenario.isPhishing;
     setStats(prev => ({ ...prev, total: prev.total + 1, correct: prev.correct + (correct ? 1 : 0) }));
@@ -503,10 +490,10 @@ function GameContent() {
   const handleDialogChoice = useCallback((choiceId: string) => {
     if (gameState !== 'PLAYING' || !scenario.dialogTree) return;
 
-    const currentNode = scenario.dialogTree.find((node: any) => node.id === currentDialogNodeId);
+    const currentNode = scenario.dialogTree.find((node: DialogNode) => node.id === currentDialogNodeId);
     if (!currentNode || !currentNode.choices) return;
 
-    const choice = currentNode.choices.find((c: any) => c.id === choiceId);
+    const choice = currentNode.choices.find((c: DialogChoice) => c.id === choiceId);
     if (!choice) return;
 
     playSound('click');
@@ -530,7 +517,7 @@ function GameContent() {
 
     // Переходим на следующий узел
     const nextNodeId = choice.nextNodeId;
-    const nextNode = scenario.dialogTree.find((node: any) => node.id === nextNodeId);
+    const nextNode = scenario.dialogTree.find((node: DialogNode) => node.id === nextNodeId);
 
     // Добавляем ответ пользователя
     setUserResponses(prev => [...prev, { nodeId: currentNode.id, text: choice.text }]);
@@ -567,7 +554,7 @@ function GameContent() {
     if (gameState !== 'PLAYING' || !scenario.tracingMap) return;
 
     const currentPath = [...tracingSelectedPath];
-    const clickedNode = scenario.tracingMap.find((n: any) => n.id === nodeId);
+    const clickedNode = scenario.tracingMap.find((n: TracingNode) => n.id === nodeId);
 
     if (!clickedNode) return;
 
@@ -584,7 +571,7 @@ function GameContent() {
 
     // Проверяем что предыдущий узел может быть подключен к текущему
     const lastNodeId = currentPath[currentPath.length - 1];
-    const lastNode = scenario.tracingMap.find((n: any) => n.id === lastNodeId);
+    const lastNode = scenario.tracingMap.find((n: TracingNode) => n.id === lastNodeId);
 
     if (!lastNode || !lastNode.connectedTo || !lastNode.connectedTo.includes(nodeId)) {
       playSound('wrong');
@@ -599,7 +586,7 @@ function GameContent() {
     if (clickedNode.type === 'end') {
       // Проверяем правильность пути (должен быть без fake узлов и правильный конец)
       const isCorrectPath = newPath.every(id => {
-        const node = scenario.tracingMap.find((n: any) => n.id === id);
+        const node = scenario.tracingMap.find((n: TracingNode) => n.id === id);
         return node && node.type !== 'fake';
       });
 
@@ -1277,15 +1264,15 @@ function GameContent() {
                         {scenario.dialogTree && (
                           <>
                             {(() => {
-                              const currentNode = scenario.dialogTree.find((node: any) => node.id === currentDialogNodeId);
+                              const currentNode = scenario.dialogTree.find((node: DialogNode) => node.id === currentDialogNodeId);
 
                               // Build dialog history for display - интерлив ответов пользователя и мошенника
-                              const dialogMessages: any[] = [];
+                              const dialogMessages: DialogMessage[] = [];
 
                               // Проходим по истории и добавляем сообщения с ответами пользователя
                               for (let i = 0; i < dialogHistory.length; i++) {
                                 const historyItemId = dialogHistory[i];
-                                const histNode = scenario.dialogTree.find((n: any) => n.id === historyItemId);
+                                const histNode = scenario.dialogTree.find((n: DialogNode) => n.id === historyItemId);
 
                                 if (histNode && histNode.text && !histNode.text.startsWith('Выберите')) {
                                   // Добавляем сообщение мошенника/системы
@@ -1298,7 +1285,7 @@ function GameContent() {
 
                                   // Ищем ответ пользователя для ЭТОГО узла (а не для предыдущего!)
                                   // Ответ пользователя сохраняется с nodeId = id узла, на котором был сделан выбор
-                                  const userResponse = userResponses.find((r: any) => r.nodeId === historyItemId);
+                                  const userResponse = userResponses.find((r) => r.nodeId === historyItemId);
                                   if (userResponse) {
                                     dialogMessages.push({
                                       id: `user-${historyItemId}`,
@@ -1363,7 +1350,7 @@ function GameContent() {
                                   {/* Кнопки выбора или информационное сообщение */}
                                   {currentNode?.choices ? (
                                     <div className="grid grid-cols-1 gap-1.5 shrink-0">
-                                      {currentNode.choices.map((choice: any) => (
+                                      {currentNode.choices.map((choice: DialogChoice) => (
                                         <button
                                           key={choice.id}
                                           onClick={() => handleDialogChoice(choice.id)}
@@ -1433,9 +1420,9 @@ function GameContent() {
                                 className="w-full h-full"
                               >
                                 {/* Линии соединений */}
-                                {scenario.tracingMap.map((node: any) =>
+                                {scenario.tracingMap.map((node: TracingNode) =>
                                   node.connectedTo?.map((connectedId: string) => {
-                                    const targetNode = scenario.tracingMap.find((n: any) => n.id === connectedId);
+                                    const targetNode = scenario.tracingMap.find((n: TracingNode) => n.id === connectedId);
                                     if (!targetNode) return null;
 
                                     const isPartOfPath = tracingSelectedPath.includes(node.id) && tracingSelectedPath.includes(connectedId);
@@ -1460,7 +1447,7 @@ function GameContent() {
                                 )}
 
                                 {/* Узлы */}
-                                {scenario.tracingMap.map((node: any) => {
+                                {scenario.tracingMap.map((node: TracingNode) => {
                                   const isSelected = tracingSelectedPath.includes(node.id);
                                   const isLastSelected = tracingSelectedPath[tracingSelectedPath.length - 1] === node.id;
                                   let color = '#6b7280';
