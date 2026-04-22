@@ -1,20 +1,71 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Фишинг-детектив: КиберЩит
 
-# Run and deploy your AI Studio app
+Веб-игра-тренажёр по цифровой безопасности.  
+Игрок анализирует сообщения, сайты, QR-коды и звонки, отличает безопасные сценарии от фишинга и проходит мини-игры при ошибках.
 
-This contains everything you need to run your app locally.
+## Возможности
 
-View your app in AI Studio: https://ai.studio/apps/fe894388-2ae6-4525-977a-f603da3de7ca
+- несколько типов сценариев: `SMS`, `EMAIL`, `SOCIAL`, `WEBSITE`, `VOICE`, `QR`, `DIALOG`, `TRACING`;
+- система очков, комбо, здоровья и прогресса;
+- обучающий режим и справка внутри игры;
+- power-ups (анализ, заморозка, связь);
+- статистика и рекорд в `localStorage`;
+- адаптивный интерфейс для мобильных и десктопных устройств.
 
-## Run Locally
+## Технологии
 
-**Prerequisites:**  Node.js
+- `React` + `TypeScript`
+- `Vite`
+- `Tailwind CSS`
+- `motion`
+- `lucide-react`
 
+## Требования
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- `Node.js` 20+ (рекомендуется LTS)
+- `npm` 10+
+
+## Запуск локально
+
+1. Установить зависимости:
+   - `npm install`
+2. Запустить режим разработки:
+   - `npm run dev`
+3. Открыть в браузере:
+   - `http://localhost:3000`
+
+## Скрипты
+
+- `npm run dev` — запуск dev-сервера
+- `npm run lint` — проверка TypeScript (`tsc --noEmit`)
+- `npm run build` — production-сборка
+- `npm run preview` — локальный просмотр production-сборки
+- `npm run clean` — удаление папки `dist`
+
+## Структура проекта
+
+- `src/App.tsx` — основная логика игры и интерфейс
+- `src/types.ts` — типы и сценарии
+- `src/index.css` — стили и анимации
+- `src/main.tsx` — точка входа приложения
+- `public/` — статические ресурсы (аудио, иконки и т.п.)
+
+## Сборка
+
+Для production:
+
+- `npm run build`
+
+Готовые файлы появятся в `dist/`.
+
+## Деплой
+
+В проекте настроен деплой через `gh-pages`:
+
+- `npm run deploy`
+
+Перед публикацией автоматически выполняется `npm run build`.
+
+## Лицензия
+
+Разработано учащимся гимназии №22 г. Минска
