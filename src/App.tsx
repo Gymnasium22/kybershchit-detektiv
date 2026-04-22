@@ -30,7 +30,8 @@ import {
   Volume2,
   VolumeX,
   QrCode,
-  Home
+  Home,
+  Gift
 } from 'lucide-react';
 import { DialogChoice, DialogNode, NEW_SCENARIOS, SCENARIOS, ScenarioType, TracingNode } from './types';
 
@@ -738,6 +739,8 @@ function GameContent() {
   }, [scenario.type, scenario.audioUrl, playAudioFile]);
 
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [showPrizeConfirm, setShowPrizeConfirm] = useState(false);
+  const TELEGRAM_STICKERPACK_URL = 'https://t.me/addstickers/REPLACE_WITH_YOUR_STICKERPACK';
 
   const handleExitToHome = () => {
     playSound('click');
@@ -841,6 +844,14 @@ function GameContent() {
     { term: "Дроп", def: "Человек, которого используют для вывода краденых денег." },
     { term: "2FA", def: "Двухфакторная аутентификация (пароль + код из СМС)." },
   ];
+  const accuracy = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
+  const completedAllLevels = isNewGamePlus && health > 0 && currentLevel >= scenariosList.length - 1;
+  const isPrizeEligible = completedAllLevels && accuracy >= 85 && score >= 1800;
+
+  const handleClaimPrize = () => {
+    setShowPrizeConfirm(false);
+    window.open(TELEGRAM_STICKERPACK_URL, '_blank', 'noopener,noreferrer');
+  };
 
   return (
     <div className="min-h-screen w-screen overflow-hidden flex items-center justify-center">
@@ -1168,7 +1179,7 @@ function GameContent() {
 
               {/* Center Column: Smartphone */}
                 <div id="smartphone-card" className="flex-1 flex items-center justify-center min-h-0 relative py-1 px-1 sm:py-2 sm:px-2">
-                <div className="relative h-full max-h-[min(calc(100vh-280px),600px)] sm:max-h-[min(calc(100vh-220px),700px)] md:max-h-[min(calc(100vh-180px),800px)] lg:max-h-[min(calc(100vh-100px),850px)] aspect-[9/19] bg-zinc-950 rounded-2xl sm:rounded-[2.5rem] md:rounded-[3.5rem] border-4 sm:border-[6px] md:border-[12px] border-zinc-900 shadow-[0_0_60px_rgba(0,0,0,0.8),inset_0_0_30px_rgba(255,255,255,0.03)] overflow-hidden flex flex-col ring-1 ring-white/5 group">
+                <div className="relative h-[min(calc(100dvh-210px),690px)] sm:h-[min(calc(100dvh-170px),760px)] md:h-[min(calc(100dvh-140px),820px)] lg:h-[min(calc(100dvh-120px),860px)] aspect-[9/19] max-w-[92vw] bg-zinc-950 rounded-2xl sm:rounded-[2.5rem] md:rounded-[3.5rem] border-4 sm:border-[6px] md:border-[12px] border-zinc-900 shadow-[0_0_60px_rgba(0,0,0,0.8),inset_0_0_30px_rgba(255,255,255,0.03)] overflow-hidden flex flex-col ring-1 ring-white/5 group shrink-0">
                   
                   {/* Physical Buttons Realism */}
                   <div className="absolute -left-[7px] md:-left-[15px] top-24 w-1 md:w-1.5 h-10 md:h-14 bg-zinc-800 rounded-l-lg border-y border-l border-white/10 shadow-lg" />
@@ -1193,7 +1204,7 @@ function GameContent() {
                     <div className="absolute top-0 left-0 w-full h-1/3 bg-gradient-to-b from-white/5 to-transparent pointer-events-none z-10" />
                     
                     {scenario.type === ScenarioType.VOICE ? (
-                      <div className="flex-1 flex flex-col items-center justify-center space-y-3 md:space-y-6 overflow-hidden">
+                      <div className="w-full flex-1 bg-zinc-900/80 rounded-[2rem] md:rounded-[3rem] p-4 md:p-6 border border-zinc-800/50 shadow-2xl backdrop-blur-sm flex flex-col items-center justify-center space-y-3 md:space-y-6 overflow-hidden">
                         <motion.div
                           animate={{
                             scale: isVoicePlaying ? [1, 1.05, 1] : 1,
@@ -1210,8 +1221,8 @@ function GameContent() {
                             <Volume2 className="w-8 h-8 md:w-12 md:h-12 text-black" />
                           )}
                         </motion.div>
-                        <div className="text-center space-y-1 shrink-0">
-                          <h4 className="text-white font-black text-base md:text-xl tracking-tight">{scenario.sender}</h4>
+                        <div className="text-center space-y-1 shrink-0 px-2">
+                          <h4 className="text-white font-black text-sm md:text-xl tracking-tight leading-tight break-words">{scenario.sender}</h4>
                           <p className={`text-purple-500 text-xs md:text-sm font-black uppercase tracking-widest ${isVoicePlaying ? 'animate-pulse' : ''}`}>
                             {isVoicePlaying ? 'Идет разговор...' : voiceAudioFailed ? 'Аудио не запустилось' : 'Входящий вызов...'}
                           </p>
@@ -1238,7 +1249,7 @@ function GameContent() {
                           </motion.button>
                         )}
 
-                        <div className="bg-zinc-900/90 p-3 md:p-4 rounded-2xl border border-zinc-800/50 text-center italic text-xs md:text-sm text-zinc-300 leading-relaxed shadow-xl overflow-hidden">
+                        <div className="bg-zinc-950/90 p-3 md:p-4 rounded-2xl border border-zinc-800/50 text-center italic text-xs md:text-sm text-zinc-300 leading-relaxed shadow-xl overflow-hidden">
                           {isVoicePlaying ? "«Слушайте сообщение внимательно...»" : voiceAudioFailed ? "«Нажмите кнопку выше для воспроизведения»" : "«Ожидание ответа...»"}
                         </div>
                       </div>
@@ -1500,7 +1511,7 @@ function GameContent() {
                              <Globe className="w-4 h-4 md:w-6 md:h-6 text-purple-400" />}
                           </div>
                           <div className="overflow-hidden">
-                            <div className={`text-sm md:text-lg font-black truncate tracking-tight ${investigated.sender ? 'text-red-400 underline decoration-red-500/50 underline-offset-4' : 'text-white'}`}>
+                            <div className={`text-xs md:text-lg font-black tracking-tight leading-tight break-words ${investigated.sender ? 'text-red-400 underline decoration-red-500/50 underline-offset-4' : 'text-white'}`}>
                               {scenario.sender}
                             </div>
                             <div className="text-xs md:text-xs lg:text-sm text-zinc-500 uppercase font-mono">Отправитель</div>
@@ -1522,11 +1533,7 @@ function GameContent() {
                               </div>
                               <div className="text-xs md:text-xs lg:text-sm text-zinc-500 italic font-mono">Отсканируйте код...</div>
                             </div>
-                          ) : (
-                            <div className="max-h-full overflow-hidden">
-                              {scenario.content}
-                            </div>
-                          )}
+                          ) : <>{scenario.content}</>}
                         </div>
                       </div>
                     )}
@@ -1544,23 +1551,23 @@ function GameContent() {
                   </div>
 
                   {/* Choice Buttons INSIDE Phone */}
-                  <div id="choice-buttons" className="p-4 md:p-8 bg-zinc-900/95 border-t border-zinc-800/50 grid grid-cols-2 gap-3 md:gap-5 shrink-0 backdrop-blur-xl">
+                  <div id="choice-buttons" className="p-2.5 md:p-6 bg-zinc-900/95 border-t border-zinc-800/50 grid grid-cols-2 gap-2.5 md:gap-5 shrink-0 backdrop-blur-xl">
                     <button 
                       onClick={() => handleChoice(true)}
                       onPointerDown={onPointerAction(() => handleChoice(true))}
-                      className="flex flex-col items-center justify-center gap-1.5 md:gap-4 p-3 md:p-6 bg-red-500/10 border border-red-500/30 rounded-2xl md:rounded-[2rem] hover:bg-red-500/20 transition-all group active:scale-95 shadow-lg focus:ring-2 focus:ring-red-500 min-h-[44px]"
+                      className="flex flex-col items-center justify-center gap-1 md:gap-4 p-2.5 md:p-6 bg-red-500/10 border border-red-500/30 rounded-2xl md:rounded-[2rem] hover:bg-red-500/20 transition-all group active:scale-95 shadow-lg focus:ring-2 focus:ring-red-500 min-h-[44px]"
                       aria-label="Выбрать фейк"
                     >
-                      <XCircle className="w-6 h-6 md:w-12 md:h-12 text-red-500 group-hover:scale-110 transition-transform" aria-label="Крестик" />
+                      <XCircle className="w-5 h-5 md:w-12 md:h-12 text-red-500 group-hover:scale-110 transition-transform" aria-label="Крестик" />
                       <span className="text-xs md:text-lg font-black text-red-500 uppercase tracking-widest">Фейк</span>
                     </button>
                     <button 
                       onClick={() => handleChoice(false)}
                       onPointerDown={onPointerAction(() => handleChoice(false))}
-                      className="flex flex-col items-center justify-center gap-1.5 md:gap-4 p-3 md:p-6 bg-purple-500/10 border border-purple-500/30 rounded-2xl md:rounded-[2rem] hover:bg-purple-500/20 transition-all group active:scale-95 shadow-lg focus:ring-2 focus:ring-purple-500 min-h-[44px]"
+                      className="flex flex-col items-center justify-center gap-1 md:gap-4 p-2.5 md:p-6 bg-purple-500/10 border border-purple-500/30 rounded-2xl md:rounded-[2rem] hover:bg-purple-500/20 transition-all group active:scale-95 shadow-lg focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                       aria-label="Выбрать ок"
                     >
-                      <CheckCircle2 className="w-6 h-6 md:w-12 md:h-12 text-purple-500 group-hover:scale-110 transition-transform" aria-label="Галочка" />
+                      <CheckCircle2 className="w-5 h-5 md:w-12 md:h-12 text-purple-500 group-hover:scale-110 transition-transform" aria-label="Галочка" />
                       <span className="text-xs md:text-lg font-black text-purple-500 uppercase tracking-widest">Ок</span>
                     </button>
                   </div>
@@ -2159,9 +2166,9 @@ function GameContent() {
               key="end"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex-1 flex flex-col items-center justify-center space-y-2 text-center w-full p-1.5 md:p-4 overflow-hidden h-full"
+              className="flex-1 flex flex-col items-center justify-start space-y-2 text-center w-full p-1.5 md:p-4 overflow-y-auto overflow-x-hidden h-full min-h-0 py-2 md:py-6"
             >
-              <div className="bg-zinc-900/90 border border-zinc-800 p-1.5 md:p-8 rounded-[1.5rem] md:rounded-[3rem] backdrop-blur-2xl space-y-1 md:space-y-6 shadow-2xl w-full max-w-2xl max-h-full overflow-y-auto flex flex-col items-center scrollbar-hide shrink-0">
+              <div className="bg-zinc-900/90 border border-zinc-800 p-1.5 md:p-8 rounded-[1.5rem] md:rounded-[3rem] backdrop-blur-2xl space-y-1 md:space-y-6 shadow-2xl w-full max-w-2xl max-h-[calc(100dvh-1rem)] md:max-h-[calc(100dvh-3rem)] overflow-y-auto flex flex-col items-center scrollbar-hide">
                 
                 {/* Rank Badge Pill */}
                 <div className="w-full max-w-md bg-zinc-950 border-2 border-white/10 rounded-xl md:rounded-full p-0.5 md:p-2.5 flex items-center gap-1.5 md:gap-4 shadow-[0_0_40px_rgba(0,0,0,0.6)] relative overflow-hidden group shrink-0">
@@ -2209,9 +2216,7 @@ function GameContent() {
                   <div className="grid grid-cols-2 gap-2 py-1 md:py-4 border-y border-zinc-800/30">
                     <div className="space-y-0.5">
                       <div className="text-[5px] md:text-[9px] uppercase text-zinc-500 font-bold tracking-widest">Точность</div>
-                      <div className="text-[9px] md:text-xl font-black text-white font-mono">
-                        {stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0}%
-                      </div>
+                      <div className="text-[9px] md:text-xl font-black text-white font-mono">{accuracy}%</div>
                     </div>
                     <div className="space-y-0.5">
                       <div className="text-[5px] md:text-[9px] uppercase text-zinc-500 font-bold tracking-widest">Статус</div>
@@ -2235,6 +2240,48 @@ function GameContent() {
                     </div>
                   )}
                 </div>
+
+                {completedAllLevels && (
+                  <div className={`w-full max-w-xl p-2 md:p-5 rounded-[1rem] md:rounded-[2rem] border relative overflow-hidden ${
+                    isPrizeEligible
+                      ? 'bg-gradient-to-r from-purple-500/15 via-cyan-500/10 to-purple-500/15 border-purple-400/50 shadow-[0_0_50px_rgba(168,85,247,0.25)]'
+                      : 'bg-zinc-950/50 border-zinc-800/60'
+                  }`}>
+                    {isPrizeEligible && (
+                      <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(110deg,transparent,rgba(255,255,255,0.12),transparent)] animate-[border-flow_4s_linear_infinite]" />
+                    )}
+                    <div className="relative z-10 flex items-center justify-between gap-3 md:gap-5">
+                      <div className="min-w-0">
+                        <div className={`text-[7px] md:text-xs uppercase font-black tracking-[0.2em] ${isPrizeEligible ? 'text-cyan-300' : 'text-zinc-500'}`}>
+                          Награда за прохождение
+                        </div>
+                        <h3 className={`text-[10px] md:text-lg font-black uppercase tracking-tight ${isPrizeEligible ? 'text-white' : 'text-zinc-300'}`}>
+                          {isPrizeEligible ? 'Приз разблокирован: стикерпак в Telegram' : 'Приз пока недоступен'}
+                        </h3>
+                        <p className="text-[7px] md:text-sm text-zinc-400 mt-0.5">
+                          {isPrizeEligible
+                            ? 'Вы успешно прошли полный курс. Нажмите кнопку, чтобы получить стикерпак.'
+                            : `Условия: точность от 85% и счёт от 1800. Сейчас: ${accuracy}% и ${score}.`}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowPrizeConfirm(true)}
+                        disabled={!isPrizeEligible}
+                        className={`shrink-0 px-2 md:px-5 py-2 md:py-3 rounded-xl md:rounded-2xl font-black uppercase tracking-wider text-[7px] md:text-xs transition-all min-h-[40px] md:min-h-[44px] ${
+                          isPrizeEligible
+                            ? 'bg-gradient-to-r from-cyan-400 to-purple-500 text-black shadow-[0_0_30px_rgba(34,211,238,0.45)] hover:brightness-110 active:scale-95'
+                            : 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed'
+                        }`}
+                        aria-label="Получить приз"
+                      >
+                        <span className="inline-flex items-center gap-1.5">
+                          <Gift className="w-3 h-3 md:w-4 md:h-4" />
+                          Получить приз
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                   <div className="grid grid-cols-1 gap-1 w-full max-w-xs md:max-w-md">
                     {!isNewGamePlus && health > 0 ? (
@@ -2451,6 +2498,45 @@ function GameContent() {
                 >
                   Все понятно!
                 </button>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {showPrizeConfirm && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[320] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl overflow-hidden"
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-zinc-900 border border-cyan-400/40 p-6 md:p-8 rounded-[2rem] max-w-md w-full text-center space-y-5 shadow-[0_0_60px_rgba(34,211,238,0.2)]"
+              >
+                <div className="w-16 h-16 bg-gradient-to-br from-cyan-400/20 to-purple-500/20 rounded-full flex items-center justify-center mx-auto border border-cyan-400/30">
+                  <Gift className="w-8 h-8 text-cyan-300" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">Получить стикерпак</h3>
+                  <p className="text-zinc-400 text-sm md:text-base">
+                    Сейчас откроется Telegram. Подтвердите добавление стикерпака в приложении.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setShowPrizeConfirm(false)}
+                    className="py-3 bg-zinc-800 text-white font-black uppercase tracking-widest rounded-xl hover:bg-zinc-700 transition-all"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    onClick={handleClaimPrize}
+                    className="py-3 bg-gradient-to-r from-cyan-400 to-purple-500 text-black font-black uppercase tracking-widest rounded-xl hover:brightness-110 transition-all shadow-[0_0_20px_rgba(34,211,238,0.4)]"
+                  >
+                    Открыть
+                  </button>
+                </div>
               </motion.div>
             </motion.div>
           )}
