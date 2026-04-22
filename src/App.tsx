@@ -49,6 +49,12 @@ export default function App() {
 }
 
 function GameContent() {
+  const onPointerAction = useCallback((action: () => void) => (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse') return;
+    e.preventDefault();
+    action();
+  }, []);
+
   const [gameState, setGameState] = useState<GameState>('START');
   const [currentLevel, setCurrentLevel] = useState(0);
   const [score, setScore] = useState(0);
@@ -586,7 +592,7 @@ function GameContent() {
     if (clickedNode.type === 'end') {
       // Проверяем правильность пути (должен быть без fake узлов и правильный конец)
       const isCorrectPath = newPath.every(id => {
-        const node = scenario.tracingMap.find((n: TracingNode) => n.id === id);
+        const node = scenario.tracingMap!.find((n: TracingNode) => n.id === id);
         return node && node.type !== 'fake';
       });
 
@@ -740,35 +746,25 @@ function GameContent() {
   };
 
   useEffect(() => {
-    // --- НАСТРОЙКИ ФОНОВОЙ МУЗЫКИ ---
-    const MUSIC_URL = 'audio/bg_music.mp3'; // Путь к файлу
-    const MUSIC_VOLUME = 0.02; // Громкость (от 0.0 до 1.0). 0.15 = 15% громкости.
-    // --------------------------------
+    const MUSIC_URL = 'audio/bg_music.mp3';
+    const MUSIC_VOLUME = 0.02;
 
-    // На мобильных аудио не запустится без взаимодействия пользователя
     bgMusicResumeListenersRef.current?.();
     bgMusicResumeListenersRef.current = null;
 
     if (isSoundEnabled && userInteracted) {
       const checkAndPlay = async () => {
         try {
-          // Check if file exists before playing to avoid console errors
-          const response = await fetch(MUSIC_URL, { method: 'HEAD' });
-          if (!response.ok) return;
-
           if (!bgMusicRef.current) {
             bgMusicRef.current = new Audio(MUSIC_URL);
             bgMusicRef.current.loop = true;
             bgMusicRef.current.volume = MUSIC_VOLUME;
           }
 
-          // Пытаемся запустить сразу или возобновить если пауза
           if (bgMusicRef.current.paused) {
             await bgMusicRef.current.play();
-            // Background music started/resumed
           }
-        } catch (e) {
-          // Если не получилось - вешаем обработчики на все клики
+        } catch {
           const enableAudio = () => {
             bgMusicRef.current?.play().catch(() => {});
             window.removeEventListener('click', enableAudio);
@@ -799,17 +795,11 @@ function GameContent() {
     };
   }, [isSoundEnabled, userInteracted]);
 
-  // Отдельный эффект для возобновления музыки после голосового сообщения
   useEffect(() => {
     if (!isVoicePlaying && isSoundEnabled && userInteracted && bgMusicRef.current) {
-      // Небольшая задержка чтобы избежать конфликта с audio.onended
       const timer = setTimeout(() => {
         if (bgMusicRef.current && bgMusicRef.current.paused) {
-          bgMusicRef.current.play().then(() => {
-            // Background music auto-resumed after voice
-          }).catch((err) => {
-            // Failed to auto-resume background music
-          });
+          bgMusicRef.current.play().catch(() => {});
         }
       }, 500);
       return () => clearTimeout(timer);
@@ -927,10 +917,7 @@ function GameContent() {
               <div className="grid grid-cols-1 gap-2 md:gap-3 w-full max-w-xs md:max-w-lg lg:max-w-xl mx-auto shrink-0">
                 <button 
                   onClick={handleStart}
-                  onTouchStart={(e) => {
-                    e.preventDefault();
-                    handleStart();
-                  }}
+                  onPointerDown={onPointerAction(handleStart)}
                   className="group relative overflow-hidden px-6 py-4 md:py-5 lg:py-6 bg-purple-500 text-black font-black text-base md:text-2xl lg:text-3xl uppercase tracking-tighter hover:bg-purple-400 transition-all active:scale-95 flex items-center justify-center gap-2 md:gap-4 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl shadow-[0_20px_50px_rgba(168,85,247,0.3)] focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                   aria-label="Начать игру"
                 >
@@ -941,7 +928,7 @@ function GameContent() {
                 <div className="flex justify-center gap-2 md:gap-3 lg:gap-4">
                   <button 
                     onClick={() => { playSound('click'); setGameState('PROFILE'); }}
-                    onTouchStart={() => { playSound('click'); setGameState('PROFILE'); }}
+                    onPointerDown={onPointerAction(() => { playSound('click'); setGameState('PROFILE'); })}
                     className="flex-1 px-3 py-3 md:py-4 lg:py-5 bg-zinc-900 border border-zinc-800 text-zinc-400 font-bold text-sm md:text-lg lg:text-xl uppercase tracking-widest hover:bg-zinc-800 transition-all flex items-center justify-center gap-1.5 md:gap-3 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                     aria-label="Открыть профиль"
                   >
@@ -950,7 +937,7 @@ function GameContent() {
                   </button>
                   <button 
                     onClick={() => { playSound('click'); setGameState('GLOSSARY'); }}
-                    onTouchStart={() => { playSound('click'); setGameState('GLOSSARY'); }}
+                    onPointerDown={onPointerAction(() => { playSound('click'); setGameState('GLOSSARY'); })}
                     className="flex-1 px-3 py-3 md:py-4 lg:py-5 bg-zinc-900 border border-zinc-800 text-zinc-400 font-bold text-sm md:text-lg lg:text-xl uppercase tracking-widest hover:bg-zinc-800 transition-all flex items-center justify-center gap-1.5 md:gap-3 rounded-xl md:rounded-[1.5rem] lg:rounded-2xl focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                     aria-label="Открыть словарь"
                   >
@@ -1012,10 +999,7 @@ function GameContent() {
                   onClick={() => {
                     startInvestigation(true);
                   }}
-                  onTouchStart={(e) => {
-                    e.preventDefault();
-                    startInvestigation(true);
-                  }}
+                  onPointerDown={onPointerAction(() => startInvestigation(true))}
                   className="w-full py-3 md:py-5 bg-white text-black font-black text-base md:text-xl uppercase tracking-widest hover:bg-zinc-200 transition-all rounded-2xl shadow-xl active:scale-95 shrink-0 focus:ring-2 focus:ring-white min-h-[44px]"
                   aria-label="Приступить к работе"
                 >
@@ -1112,7 +1096,7 @@ function GameContent() {
                   <div className="flex items-center gap-2 sm:gap-3">
                     <button 
                       onClick={() => setShowExitConfirm(true)}
-                      onTouchStart={() => setShowExitConfirm(true)}
+                      onPointerDown={onPointerAction(() => setShowExitConfirm(true))}
                       className="p-2 sm:p-2.5 bg-red-500 rounded-full text-white shadow-lg backdrop-blur-md hover:bg-red-600 transition-all focus:ring-2 focus:ring-red-500"
                       aria-label="Выход в меню"
                     >
@@ -1142,7 +1126,7 @@ function GameContent() {
                 <div className="flex justify-center gap-1 sm:gap-2">
                   <button 
                     onClick={() => usePowerUp('magnifier')}
-                    onTouchStart={() => usePowerUp('magnifier')}
+                    onPointerDown={onPointerAction(() => usePowerUp('magnifier'))}
                     disabled={powerUps.magnifier === 0 || showHint || isVoicePlaying || scenario.type === ScenarioType.VOICE}
                     className={`p-2 sm:p-3 bg-zinc-900 border rounded-lg sm:rounded-xl text-blue-400 disabled:opacity-30 focus:ring-2 focus:ring-blue-500 min-h-[40px] sm:min-h-[44px] transition-all ${activePowerUp === 'magnifier' ? 'animate-pulse border-blue-400 glow-cyan' : 'border-zinc-800'}`}
                     aria-label="Использовать лупу"
@@ -1151,7 +1135,7 @@ function GameContent() {
                   </button>
                   <button 
                     onClick={() => usePowerUp('freeze')}
-                    onTouchStart={() => usePowerUp('freeze')}
+                    onPointerDown={onPointerAction(() => usePowerUp('freeze'))}
                     disabled={powerUps.freeze === 0 || isFrozen || isVoicePlaying}
                     className={`p-2 sm:p-3 bg-zinc-900 border rounded-lg sm:rounded-xl text-cyan-400 disabled:opacity-30 focus:ring-2 focus:ring-cyan-500 min-h-[40px] sm:min-h-[44px] transition-all ${activePowerUp === 'freeze' ? 'animate-pulse border-cyan-400 glow-cyan' : 'border-zinc-800'}`}
                     aria-label="Использовать заморозку"
@@ -1160,7 +1144,7 @@ function GameContent() {
                   </button>
                   <button 
                     onClick={() => usePowerUp('call')}
-                    onTouchStart={() => usePowerUp('call')}
+                    onPointerDown={onPointerAction(() => usePowerUp('call'))}
                     disabled={powerUps.call === 0 || (investigated.sender && investigated.url) || isVoicePlaying || scenario.type === ScenarioType.DIALOG || scenario.type === ScenarioType.TRACING}
                     className={`p-2 sm:p-3 bg-zinc-900 border rounded-lg sm:rounded-xl text-purple-400 disabled:opacity-30 focus:ring-2 focus:ring-purple-500 min-h-[40px] sm:min-h-[44px] transition-all ${activePowerUp === 'call' ? 'animate-pulse border-purple-400 glow-purple' : 'border-zinc-800'}`}
                     aria-label="Использовать звонок"
@@ -1169,7 +1153,7 @@ function GameContent() {
                   </button>
                   <button 
                     onClick={() => setShowFAQ(true)}
-                    onTouchStart={() => setShowFAQ(true)}
+                    onPointerDown={onPointerAction(() => setShowFAQ(true))}
                     className="p-2 sm:p-3 bg-zinc-900 border border-zinc-800 rounded-lg sm:rounded-xl text-zinc-500 focus:ring-2 focus:ring-zinc-500 min-h-[40px] sm:min-h-[44px]"
                     aria-label="Показать FAQ"
                   >
@@ -1242,11 +1226,10 @@ function GameContent() {
                               playSound('click');
                               handlePlayVoiceAudio();
                             }}
-                            onTouchStart={(e) => {
-                              e.preventDefault();
+                            onPointerDown={onPointerAction(() => {
                               playSound('click');
                               handlePlayVoiceAudio();
-                            }}
+                            })}
                             className="px-6 py-3 bg-purple-500 hover:bg-purple-400 text-black font-black text-sm md:text-base rounded-2xl shadow-[0_0_30px_rgba(168,85,247,0.5)] flex items-center gap-2 transition-all active:scale-95 focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                             aria-label={voiceAudioFailed ? 'Повторить аудио' : 'Воспроизвести голос'}
                           >
@@ -1354,10 +1337,7 @@ function GameContent() {
                                         <button
                                           key={choice.id}
                                           onClick={() => handleDialogChoice(choice.id)}
-                                          onTouchStart={(e) => {
-                                            e.preventDefault();
-                                            handleDialogChoice(choice.id);
-                                          }}
+                                          onPointerDown={onPointerAction(() => handleDialogChoice(choice.id))}
                                           className={`p-2.5 md:p-3 rounded-lg border text-xs md:text-sm text-zinc-100 transition-all active:scale-95 focus:ring-2 focus:ring-blue-500 min-h-[40px] text-left relative overflow-hidden ${
                                             dialogClueRevealed === choice.id
                                               ? 'bg-blue-500/20 border-blue-500 animate-pulse'
@@ -1422,7 +1402,7 @@ function GameContent() {
                                 {/* Линии соединений */}
                                 {scenario.tracingMap.map((node: TracingNode) =>
                                   node.connectedTo?.map((connectedId: string) => {
-                                    const targetNode = scenario.tracingMap.find((n: TracingNode) => n.id === connectedId);
+                                    const targetNode = scenario.tracingMap!.find((n: TracingNode) => n.id === connectedId);
                                     if (!targetNode) return null;
 
                                     const isPartOfPath = tracingSelectedPath.includes(node.id) && tracingSelectedPath.includes(connectedId);
@@ -1469,7 +1449,7 @@ function GameContent() {
                                         opacity={isSelected ? 1 : 0.5}
                                         style={{ cursor: 'pointer' }}
                                         onClick={() => handleTracingNodeClick(node.id)}
-                                        onTouchEnd={() => handleTracingNodeClick(node.id)}
+                                        onPointerUp={onPointerAction(() => handleTracingNodeClick(node.id))}
                                       />
                                       {isSelected && (
                                         <circle
@@ -1499,10 +1479,7 @@ function GameContent() {
                                 {tracingSelectedPath.length > 0 && (
                                   <button
                                     onClick={() => setTracingSelectedPath([])}
-                                    onTouchStart={(e) => {
-                                      e.preventDefault();
-                                      setTracingSelectedPath([]);
-                                    }}
+                                    onPointerDown={onPointerAction(() => setTracingSelectedPath([]))}
                                     className="flex-1 py-2 px-3 bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs md:text-sm font-black rounded-lg hover:bg-orange-500/20 transition-all active:scale-95 min-h-[44px] flex items-center justify-center"
                                     aria-label="Сбросить путь"
                                   >
@@ -1570,10 +1547,7 @@ function GameContent() {
                   <div id="choice-buttons" className="p-4 md:p-8 bg-zinc-900/95 border-t border-zinc-800/50 grid grid-cols-2 gap-3 md:gap-5 shrink-0 backdrop-blur-xl">
                     <button 
                       onClick={() => handleChoice(true)}
-                      onTouchStart={(e) => {
-                        e.preventDefault();
-                        handleChoice(true);
-                      }}
+                      onPointerDown={onPointerAction(() => handleChoice(true))}
                       className="flex flex-col items-center justify-center gap-1.5 md:gap-4 p-3 md:p-6 bg-red-500/10 border border-red-500/30 rounded-2xl md:rounded-[2rem] hover:bg-red-500/20 transition-all group active:scale-95 shadow-lg focus:ring-2 focus:ring-red-500 min-h-[44px]"
                       aria-label="Выбрать фейк"
                     >
@@ -1582,10 +1556,7 @@ function GameContent() {
                     </button>
                     <button 
                       onClick={() => handleChoice(false)}
-                      onTouchStart={(e) => {
-                        e.preventDefault();
-                        handleChoice(false);
-                      }}
+                      onPointerDown={onPointerAction(() => handleChoice(false))}
                       className="flex flex-col items-center justify-center gap-1.5 md:gap-4 p-3 md:p-6 bg-purple-500/10 border border-purple-500/30 rounded-2xl md:rounded-[2rem] hover:bg-purple-500/20 transition-all group active:scale-95 shadow-lg focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                       aria-label="Выбрать ок"
                     >
@@ -1602,7 +1573,7 @@ function GameContent() {
                 <div className="bg-zinc-900/60 border border-zinc-800/50 p-4 xl:p-6 rounded-2xl backdrop-blur-xl space-y-3 shadow-2xl relative group/hud">
                   <button 
                     onClick={() => setShowExitConfirm(true)}
-                    onTouchStart={() => setShowExitConfirm(true)}
+                    onPointerDown={onPointerAction(() => setShowExitConfirm(true))}
                     className="absolute -top-2 -right-2 p-2 sm:p-3 bg-red-500 text-white rounded-xl sm:rounded-2xl transition-all hover:scale-110 shadow-xl z-10 focus:ring-2 focus:ring-red-500"
                     aria-label="Выйти в главное меню"
                   >
@@ -1636,7 +1607,7 @@ function GameContent() {
                   <div className="grid grid-cols-1 gap-2">
                     <button 
                       onClick={() => usePowerUp('magnifier')}
-                      onTouchStart={() => usePowerUp('magnifier')}
+                      onPointerDown={onPointerAction(() => usePowerUp('magnifier'))}
                       disabled={powerUps.magnifier === 0 || showHint || isVoicePlaying || scenario.type === ScenarioType.VOICE}
                       className={`flex items-center justify-between p-2 sm:p-3 rounded-xl border transition-all focus:ring-2 focus:ring-blue-500 min-h-[40px] sm:min-h-[44px] ${activePowerUp === 'magnifier' ? 'animate-pulse border-blue-400 glow-cyan' : powerUps.magnifier > 0 && !isVoicePlaying && !showHint && scenario.type !== ScenarioType.VOICE ? 'bg-zinc-950 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
                       aria-label="Использовать анализ"
@@ -1649,7 +1620,7 @@ function GameContent() {
                     </button>
                     <button 
                       onClick={() => usePowerUp('freeze')}
-                      onTouchStart={() => usePowerUp('freeze')}
+                      onPointerDown={onPointerAction(() => usePowerUp('freeze'))}
                       disabled={powerUps.freeze === 0 || isFrozen || isVoicePlaying}
                       className={`flex items-center justify-between p-2 sm:p-3 rounded-xl border transition-all focus:ring-2 focus:ring-cyan-500 min-h-[40px] sm:min-h-[44px] ${activePowerUp === 'freeze' ? 'animate-pulse border-cyan-400 glow-cyan' : powerUps.freeze > 0 && !isVoicePlaying && !isFrozen ? 'bg-zinc-950 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
                       aria-label="Использовать заморозку"
@@ -1662,7 +1633,7 @@ function GameContent() {
                     </button>
                     <button 
                       onClick={() => usePowerUp('call')}
-                      onTouchStart={() => usePowerUp('call')}
+                      onPointerDown={onPointerAction(() => usePowerUp('call'))}
                       disabled={powerUps.call === 0 || (investigated.sender && investigated.url) || isVoicePlaying || scenario.type === ScenarioType.DIALOG || scenario.type === ScenarioType.TRACING}
                       className={`flex items-center justify-between p-2 sm:p-3 rounded-xl border transition-all focus:ring-2 focus:ring-purple-500 min-h-[40px] sm:min-h-[44px] ${activePowerUp === 'call' ? 'animate-pulse border-purple-400 glow-purple' : powerUps.call > 0 && !isVoicePlaying && !(investigated.sender && investigated.url) && scenario.type !== ScenarioType.DIALOG && scenario.type !== ScenarioType.TRACING ? 'bg-zinc-950 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
                       aria-label="Использовать связь"
@@ -1689,7 +1660,7 @@ function GameContent() {
 
                 <button 
                   onClick={() => setShowFAQ(true)}
-                  onTouchStart={() => setShowFAQ(true)}
+                  onPointerDown={onPointerAction(() => setShowFAQ(true))}
                   className="w-full py-2 sm:py-3 bg-zinc-900/80 border border-zinc-800/50 text-zinc-500 hover:text-white hover:bg-zinc-800 transition-all rounded-xl sm:rounded-xl flex items-center justify-center gap-2 sm:gap-3 shadow-xl focus:ring-2 focus:ring-zinc-500 min-h-[40px] sm:min-h-[44px]"
                   aria-label="Показать помощь"
                 >
