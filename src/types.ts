@@ -248,15 +248,15 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 15,
     type: ScenarioType.SMS,
-    sender: "РОНАР",
+    sender: "A1",
     content: "Напоминаем: завтра в 14:00 состоится плановое техобслуживание. Время работы: 10:00-16:00. Приносим извинения за неудобства.",
     isPhishing: false,
-    hint: "Ронар — официальный оператор. Это плановое уведомление без ссылок и запросов данных.",
+    hint: "Это типичное сервисное уведомление оператора: без ссылок и без запроса личных данных.",
     explanation: "Это легитимное смс от мобильного оператора. Никаких ссылок или запросов личных данных.",
     briefing: "Смс от мобильного оператора. Проверка отправителя.",
     educationalInfo: {
       title: "Официальные уведомления",
-      description: "Настоящие операторы связи (МТС, А1, Ронар) присылают только информационные сообщения без ссылок.",
+      description: "Официальные операторы связи в Республике Беларусь (A1, МТС, life:)) отправляют сервисные уведомления без запроса паролей и данных карт.",
     }
   },
   {
@@ -336,12 +336,12 @@ export const NEW_SCENARIOS: Scenario[] = [
         { id: 'c3a', text: "Если не можете - это мошенничество!", nextNodeId: 'c3a_win', points: 90, revealsClue: true },
         { id: 'c3b', text: "Хорошо, помогите", nextNodeId: 'c3b_trap', points: 0, isRisky: true },
       ]},
-      { id: 'c3a_win', speaker: 'system', text: "✅ Правильно! Мошенник испугался -заблокировал!", isCorrect: true },
+      { id: 'c3a_win', speaker: 'system', text: "✅ Правильно! Мошенник испугался и заблокировал чат.", isCorrect: true },
       { id: 'c3b_trap', speaker: 'scammer', text: "Переходите на верификацию...", isCorrect: false },
     ],
     educationalInfo: {
       title: "ЕРИП: как распознать мошенников в чатах",
-      description: "✅ Правильно: Проверяйте номер, просите номер договора, используйте официальные номера (ЕРИП 153), смотрите домены (только .by)\n❌ Неправильно: Не переходите по ссылкам в мессенджерах, не вводите пароли, не верьте срочности",
+      description: "✅ Правильно: Проверяйте контакт через официальные каналы, просите номер договора, смотрите домены (только .by)\n❌ Неправильно: Не переходите по ссылкам в мессенджерах, не вводите пароли, не верьте срочности",
     }
   },
   {
@@ -377,9 +377,9 @@ export const NEW_SCENARIOS: Scenario[] = [
     id: 104,
     type: ScenarioType.SMS,
     sender: "Cryptobel",
-    content: "🚀 BITCOIN пробил $150,000! Успей купить на cryptobel.by — официальный партнёр Binance в РБ. Внеси до 31 марта и получи +50% к депозиту!",
+    content: "🚀 BITCOIN растёт! Успей купить на cryptobel.by — якобы официальный криптосервис. Внеси до 31 марта и получи +50% к депозиту!",
     isPhishing: true,
-    hint: "Binance не имеет официальных партнёров в РБ. Домен .by зарегистрирован 3 дня назад.",
+    hint: "Обещание гарантированной прибыли и бонус +50% — типичный признак мошенничества. Проверяйте лицензию сервиса и юридические данные.",
     explanation: "Крипто-скам — новая волна мошенничества в Беларуси 2026. Мошенники используют хайп вокруг криптовалют для кражи денег.",
     briefing: "СМС о крипто-инвестициях. Проверка легальности...",
     educationalInfo: {
@@ -442,7 +442,7 @@ export const NEW_SCENARIOS: Scenario[] = [
       { id: 'd2_trap', speaker: 'scammer', text: "Очень помогу! Переходите сюда: kufar-secure-verify.pw/auth - вводите пароль от аккаунта",
         choices: [
           { id: 'd2a', text: "СТОП! Это явно фишинговый домен! Меня вот в полицию!", nextNodeId: 'd2a_win', points: 100, revealsClue: true },
-          { id: 'd2b', text: "Хорошо, переду", nextNodeId: 'd2b_end', points: 0, isRisky: true },
+          { id: 'd2b', text: "Хорошо, перейду", nextNodeId: 'd2b_end', points: 0, isRisky: true },
         ]
       },
       { id: 'd2a_win', speaker: 'system', text: "✅ ПРАВИЛЬНО! Доменное имя kufar-secure-verify.pw - это очевидный фишинг! Мошенник заблокировал вас.", isCorrect: true },
@@ -450,10 +450,10 @@ export const NEW_SCENARIOS: Scenario[] = [
 
       { id: 'd3_win', speaker: 'system', text: "✅ ИДЕАЛЬНО! Мошенник не может написать в официальный чат. Он исчез из этого поддельного Telegram-аккаунта!", isCorrect: true },
 
-      { id: 'd4_trap', speaker: 'scammer', text: "Шляходитесь по ссылке: https://kufarapp-verify.com/check - все нужные поля уже там",
+      { id: 'd4_trap', speaker: 'scammer', text: "Переходите по ссылке: https://kufarapp-verify.com/check — все нужные поля уже там",
         choices: [
           { id: 'd4a', text: "Это не .by домен и не из приложения Куфара. Это подделка!", nextNodeId: 'd4a_win', points: 100, revealsClue: true },
-          { id: 'd4b', text: "Переходу и проверяю", nextNodeId: 'd4b_end', points: 0, isRisky: true },
+          { id: 'd4b', text: "Перехожу и проверяю", nextNodeId: 'd4b_end', points: 0, isRisky: true },
         ]
       },
       { id: 'd4a_win', speaker: 'system', text: "✅ ВЫЯВЛЕНО! Вы правильно заметили: не .by домен, не из приложения! Фишинг раскрыт!", isCorrect: true },
