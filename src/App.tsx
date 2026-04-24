@@ -620,6 +620,29 @@ function GameContent() {
     }
   }, [gameState, scenario, tracingSelectedPath, timeLeft, combo, playSound, startMiniGame]);
 
+  const formatTracingPath = useCallback((path: string[]) => {
+    if (!scenario.tracingMap || path.length === 0) return 'Выберите точку входа';
+
+    const intermediateCounter: Record<string, number> = {
+      intermediate: 0,
+      fake: 0,
+    };
+
+    const labels = path.map((id) => {
+      const node = scenario.tracingMap!.find((n: TracingNode) => n.id === id);
+      if (!node) return 'Неизвестный узел';
+
+      if (node.type === 'start') return 'Точка входа';
+      if (node.type === 'end') return 'Возможный источник';
+
+      intermediateCounter[node.type] += 1;
+      if (node.type === 'fake') return `Ложный маршрут ${intermediateCounter.fake}`;
+      return `Промежуточный узел ${intermediateCounter.intermediate}`;
+    });
+
+    return labels.join(' -> ');
+  }, [scenario.tracingMap]);
+
   const usePowerUp = useCallback((type: 'magnifier' | 'freeze' | 'call') => {
     if (powerUps[type] <= 0 || gameState !== 'PLAYING' || isVoicePlaying) return;
     
@@ -1482,9 +1505,12 @@ function GameContent() {
 
                             {/* Информация и кнопли */}
                             <div className="space-y-2 shrink-0">
-                              <div className="bg-zinc-900/80 p-3 md:p-4 rounded-xl border border-zinc-800/50">
+                              <div className="bg-zinc-900/80 p-3 md:p-4 rounded-xl border border-zinc-800/50 space-y-2">
+                                <p className="text-[11px] md:text-xs text-zinc-500 uppercase tracking-wider">
+                                  Выберите маршрут к реальному источнику
+                                </p>
                                 <p className="text-xs md:text-sm text-zinc-300 font-mono">
-                                  Путь: {tracingSelectedPath.length === 0 ? 'Выберите начало' : `${tracingSelectedPath.join(' → ')}`}
+                                  Маршрут: {formatTracingPath(tracingSelectedPath)}
                                 </p>
                               </div>
                               <div className="flex gap-2">
