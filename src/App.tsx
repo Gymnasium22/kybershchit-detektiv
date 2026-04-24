@@ -763,7 +763,7 @@ function GameContent() {
 
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showPrizeConfirm, setShowPrizeConfirm] = useState(false);
-  const TELEGRAM_STICKERPACK_URL = 'https://t.me/addstickers/REPLACE_WITH_YOUR_STICKERPACK';
+  const TELEGRAM_STICKERPACK_URL = 'https://t.me/addstickers/KibershchitDetektiv';
 
   const handleExitToHome = () => {
     playSound('click');
