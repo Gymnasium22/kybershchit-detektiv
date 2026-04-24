@@ -33,7 +33,7 @@ import {
   Home,
   Gift
 } from 'lucide-react';
-import { DialogChoice, DialogNode, NEW_SCENARIOS, SCENARIOS, ScenarioType, TracingNode } from './types';
+import { DialogChoice, DialogNode, NEW_SCENARIOS, SCENARIOS, ScenarioType } from './types';
 
 type GameState = 'START' | 'STORY' | 'PLAYING' | 'FEEDBACK' | 'EDUCATIONAL' | 'MINIGAME' | 'END' | 'GLOSSARY' | 'PROFILE' | 'LOADING';
 type DialogMessage = {
@@ -109,7 +109,6 @@ function GameContent() {
   const [dialogHistory, setDialogHistory] = useState<string[]>([]);
   const [userResponses, setUserResponses] = useState<{nodeId: string; text: string}[]>([]);
   const [dialogScore, setDialogScore] = useState(0);
-  const [tracingSelectedPath, setTracingSelectedPath] = useState<string[]>([]);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const audioHandlersRef = React.useRef<{ onended?: ((this: HTMLAudioElement, ev: Event) => void) | null; onerror?: ((this: HTMLAudioElement, ev: Event) => void) | null }>({});
   const bgMusicRef = React.useRef<HTMLAudioElement | null>(null);
@@ -426,7 +425,6 @@ function GameContent() {
     setDialogHistory(['start']);
     setUserResponses([]);
     setDialogScore(0);
-    setTracingSelectedPath([]);
     if (withTutorial) {
       setIsTutorialActive(true);
       setTutorialStep(0);
@@ -557,92 +555,6 @@ function GameContent() {
     }
   }, [gameState, scenario, currentDialogNodeId, timeLeft, combo, dialogScore, dialogHistory, playSound, startMiniGame]);
 
-  const handleTracingNodeClick = useCallback((nodeId: string) => {
-    if (gameState !== 'PLAYING' || !scenario.tracingMap) return;
-
-    const currentPath = [...tracingSelectedPath];
-    const clickedNode = scenario.tracingMap.find((n: TracingNode) => n.id === nodeId);
-
-    if (!clickedNode) return;
-
-    // Если первый клик - должен быть start узел
-    if (currentPath.length === 0) {
-      if (clickedNode.type !== 'start') {
-        playSound('wrong');
-        return;
-      }
-      playSound('click');
-      setTracingSelectedPath([nodeId]);
-      return;
-    }
-
-    // Проверяем что предыдущий узел может быть подключен к текущему
-    const lastNodeId = currentPath[currentPath.length - 1];
-    const lastNode = scenario.tracingMap.find((n: TracingNode) => n.id === lastNodeId);
-
-    if (!lastNode || !lastNode.connectedTo || !lastNode.connectedTo.includes(nodeId)) {
-      playSound('wrong');
-      return;
-    }
-
-    playSound('click');
-    const newPath = [...currentPath, nodeId];
-    setTracingSelectedPath(newPath);
-
-    // Проверяем если достигли конца
-    if (clickedNode.type === 'end') {
-      // Проверяем правильность пути (должен быть без fake узлов и правильный конец)
-      const isCorrectPath = newPath.every(id => {
-        const node = scenario.tracingMap!.find((n: TracingNode) => n.id === id);
-        return node && node.type !== 'fake';
-      });
-
-      if (isCorrectPath && clickedNode.type === 'end') {
-        // Вигрыш
-        setShowHint(false);
-        const points = (100 + Math.floor(timeLeft * 5)) * combo;
-        setScore(s => s + points);
-        setCombo(c => Math.min(c + 1, 5));
-        setLastResult({ correct: true, message: "ИСТОЧНИК ВЫЯВЛЕН" });
-        setEvidence(prev => [...new Set([...prev, `Трассировка: ${scenario.sender}`])]);
-        setGameState('FEEDBACK');
-      } else {
-        // Неправильный путь - штраф
-        playSound('wrong');
-        setCombo(1);
-        startMiniGame(Math.random() > 0.5 ? 'PASSWORD' : 'CABLE');
-      }
-    } else if (clickedNode.type === 'fake') {
-      // Попали на fake узел - штраф
-      playSound('wrong');
-      setCombo(1);
-      startMiniGame(Math.random() > 0.5 ? 'PASSWORD' : 'CABLE');
-    }
-  }, [gameState, scenario, tracingSelectedPath, timeLeft, combo, playSound, startMiniGame]);
-
-  const formatTracingPath = useCallback((path: string[]) => {
-    if (!scenario.tracingMap || path.length === 0) return 'Выберите точку входа';
-
-    const intermediateCounter: Record<string, number> = {
-      intermediate: 0,
-      fake: 0,
-    };
-
-    const labels = path.map((id) => {
-      const node = scenario.tracingMap!.find((n: TracingNode) => n.id === id);
-      if (!node) return 'Неизвестный узел';
-
-      if (node.type === 'start') return 'Точка входа';
-      if (node.type === 'end') return 'Возможный источник';
-
-      intermediateCounter[node.type] += 1;
-      if (node.type === 'fake') return `Ложный маршрут ${intermediateCounter.fake}`;
-      return `Промежуточный узел ${intermediateCounter.intermediate}`;
-    });
-
-    return labels.join(' -> ');
-  }, [scenario.tracingMap]);
-
   const usePowerUp = useCallback((type: 'magnifier' | 'freeze' | 'call') => {
     if (powerUps[type] <= 0 || gameState !== 'PLAYING' || isVoicePlaying) return;
     
@@ -654,8 +566,8 @@ function GameContent() {
     // Magnifier is useless in voice calls
     if (type === 'magnifier' && scenario.type === ScenarioType.VOICE) return;
     
-    // Call power-up is useless in DIALOG/TRACING modes
-    if (type === 'call' && (scenario.type === ScenarioType.DIALOG || scenario.type === ScenarioType.TRACING)) return;
+    // Call power-up is useless in dialog mode
+    if (type === 'call' && scenario.type === ScenarioType.DIALOG) return;
 
     playSound('powerup');
     setPowerUps(prev => ({ ...prev, [type]: prev[type] - 1 }));
@@ -670,7 +582,7 @@ function GameContent() {
       setIsFrozen(true);
       setTimeout(() => setIsFrozen(false), 8000);
     } else if (type === 'call') {
-      // Auto-investigate everything for non-DIALOG/TRACING types
+      // Auto-investigate everything for non-dialog types
       setInvestigated({ sender: true, url: true });
     }
   }, [powerUps, gameState, playSound, showHint, scenario.type, investigated.sender, investigated.url, isFrozen, isVoicePlaying]);
@@ -725,7 +637,6 @@ function GameContent() {
         setDialogHistory(['start']); // Сбросить историю диалога
         setUserResponses([]); // Сбросить ответы пользователя
         setDialogScore(0); // Сбросить очки диалога
-        setTracingSelectedPath([]); // Сбросить путь трассировки
         setGameState('PLAYING');
 
         // Автозапуск голосовых только на десктопе — на мобильных пользователь нажмёт кнопку сам
@@ -1180,7 +1091,7 @@ function GameContent() {
                   <button 
                     onClick={() => usePowerUp('call')}
                     onPointerDown={onPointerAction(() => usePowerUp('call'))}
-                    disabled={powerUps.call === 0 || (investigated.sender && investigated.url) || isVoicePlaying || scenario.type === ScenarioType.DIALOG || scenario.type === ScenarioType.TRACING}
+                    disabled={powerUps.call === 0 || (investigated.sender && investigated.url) || isVoicePlaying || scenario.type === ScenarioType.DIALOG}
                     className={`p-2 sm:p-3 bg-zinc-900 border rounded-lg sm:rounded-xl text-purple-400 disabled:opacity-30 focus:ring-2 focus:ring-purple-500 min-h-[40px] sm:min-h-[44px] transition-all ${activePowerUp === 'call' ? 'animate-pulse border-purple-400 glow-purple' : 'border-zinc-800'}`}
                     aria-label="Использовать звонок"
                   >
@@ -1421,114 +1332,6 @@ function GameContent() {
                           </>
                         )}
                       </div>
-                    ) : scenario.type === ScenarioType.TRACING ? (
-                      <div className="flex-1 flex flex-col overflow-hidden space-y-4 md:space-y-6">
-                        {scenario.tracingMap && (
-                          <>
-                            {/* SVG Визуализация сети */}
-                            <div className="bg-zinc-900/80 rounded-2xl p-4 border border-zinc-800/50 flex-1 min-h-0 flex items-center justify-center overflow-hidden">
-                              <svg
-                                width="100%"
-                                height="100%"
-                                viewBox="0 0 100 100"
-                                preserveAspectRatio="xMidYMid meet"
-                                className="w-full h-full"
-                              >
-                                {/* Линии соединений */}
-                                {scenario.tracingMap.map((node: TracingNode) =>
-                                  node.connectedTo?.map((connectedId: string) => {
-                                    const targetNode = scenario.tracingMap!.find((n: TracingNode) => n.id === connectedId);
-                                    if (!targetNode) return null;
-
-                                    const isPartOfPath = tracingSelectedPath.includes(node.id) && tracingSelectedPath.includes(connectedId);
-                                    const fromIndex = tracingSelectedPath.indexOf(node.id);
-                                    const toIndex = tracingSelectedPath.indexOf(connectedId);
-                                    const isConsecutive = fromIndex >= 0 && toIndex === fromIndex + 1;
-
-                                    return (
-                                      <line
-                                        key={`${node.id}-${connectedId}`}
-                                        x1={node.x}
-                                        y1={node.y}
-                                        x2={targetNode.x}
-                                        y2={targetNode.y}
-                                        stroke={isConsecutive ? '#10b981' : '#6b7280'}
-                                        strokeWidth={isConsecutive ? 2 : 1}
-                                        strokeDasharray={isPartOfPath ? 'none' : '2,2'}
-                                        opacity={isPartOfPath ? 1 : 0.4}
-                                      />
-                                    );
-                                  })
-                                )}
-
-                                {/* Узлы */}
-                                {scenario.tracingMap.map((node: TracingNode) => {
-                                  const isSelected = tracingSelectedPath.includes(node.id);
-                                  const isLastSelected = tracingSelectedPath[tracingSelectedPath.length - 1] === node.id;
-                                  let color = '#6b7280';
-
-                                  if (node.type === 'start') color = '#10b981';
-                                  else if (node.type === 'end') color = '#10b981';
-                                  else if (node.type === 'fake') color = '#ef4444';
-                                  else if (node.type === 'intermediate') color = '#3b82f6';
-
-                                  return (
-                                    <g key={node.id}>
-                                      <circle
-                                        cx={node.x}
-                                        cy={node.y}
-                                        r={isLastSelected ? 4 : 2.5}
-                                        fill={isSelected ? color : 'rgba(107, 114, 128, 0.3)'}
-                                        stroke={color}
-                                        strokeWidth={isSelected ? 1.5 : 0.5}
-                                        opacity={isSelected ? 1 : 0.5}
-                                        style={{ cursor: 'pointer' }}
-                                        onClick={() => handleTracingNodeClick(node.id)}
-                                        onPointerUp={onPointerAction(() => handleTracingNodeClick(node.id))}
-                                      />
-                                      {isSelected && (
-                                        <circle
-                                          cx={node.x}
-                                          cy={node.y}
-                                          r={5}
-                                          fill="none"
-                                          stroke={color}
-                                          strokeWidth={0.8}
-                                          opacity="0.5"
-                                        />
-                                      )}
-                                    </g>
-                                  );
-                                })}
-                              </svg>
-                            </div>
-
-                            {/* Информация и кнопли */}
-                            <div className="space-y-2 shrink-0">
-                              <div className="bg-zinc-900/80 p-3 md:p-4 rounded-xl border border-zinc-800/50 space-y-2">
-                                <p className="text-[11px] md:text-xs text-zinc-500 uppercase tracking-wider">
-                                  Выберите маршрут к реальному источнику
-                                </p>
-                                <p className="text-xs md:text-sm text-zinc-300 font-mono">
-                                  Маршрут: {formatTracingPath(tracingSelectedPath)}
-                                </p>
-                              </div>
-                              <div className="flex gap-2">
-                                {tracingSelectedPath.length > 0 && (
-                                  <button
-                                    onClick={() => setTracingSelectedPath([])}
-                                    onPointerDown={onPointerAction(() => setTracingSelectedPath([]))}
-                                    className="flex-1 py-2 px-3 bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs md:text-sm font-black rounded-lg hover:bg-orange-500/20 transition-all active:scale-95 min-h-[44px] flex items-center justify-center"
-                                    aria-label="Сбросить путь"
-                                  >
-                                    Сброс
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
                     ) : (
                       <div className="bg-zinc-900/80 rounded-[2rem] md:rounded-[3rem] p-4 md:p-6 border border-zinc-800/50 space-y-3 md:space-y-4 shadow-2xl backdrop-blur-sm overflow-hidden flex flex-col max-h-full">
                         <div className="flex items-center gap-2 md:gap-4 border-b border-zinc-800/50 pb-3 md:pb-4 shrink-0">
@@ -1668,8 +1471,8 @@ function GameContent() {
                     <button 
                       onClick={() => usePowerUp('call')}
                       onPointerDown={onPointerAction(() => usePowerUp('call'))}
-                      disabled={powerUps.call === 0 || (investigated.sender && investigated.url) || isVoicePlaying || scenario.type === ScenarioType.DIALOG || scenario.type === ScenarioType.TRACING}
-                      className={`flex items-center justify-between p-2 sm:p-3 rounded-xl border transition-all focus:ring-2 focus:ring-purple-500 min-h-[40px] sm:min-h-[44px] ${activePowerUp === 'call' ? 'animate-pulse border-purple-400 glow-purple' : powerUps.call > 0 && !isVoicePlaying && !(investigated.sender && investigated.url) && scenario.type !== ScenarioType.DIALOG && scenario.type !== ScenarioType.TRACING ? 'bg-zinc-950 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
+                      disabled={powerUps.call === 0 || (investigated.sender && investigated.url) || isVoicePlaying || scenario.type === ScenarioType.DIALOG}
+                      className={`flex items-center justify-between p-2 sm:p-3 rounded-xl border transition-all focus:ring-2 focus:ring-purple-500 min-h-[40px] sm:min-h-[44px] ${activePowerUp === 'call' ? 'animate-pulse border-purple-400 glow-purple' : powerUps.call > 0 && !isVoicePlaying && !(investigated.sender && investigated.url) && scenario.type !== ScenarioType.DIALOG ? 'bg-zinc-950 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 shadow-lg' : 'bg-zinc-950/50 border-zinc-800 text-zinc-700 opacity-50'}`}
                       aria-label="Использовать связь"
                     >
                       <div className="flex items-center gap-2">

@@ -6,7 +6,6 @@ export enum ScenarioType {
   VOICE = 'VOICE',
   QR = 'QR',
   DIALOG = 'DIALOG',
-  TRACING = 'TRACING',
 }
 
 export interface Scenario {
@@ -26,7 +25,6 @@ export interface Scenario {
     realExample?: string;
   };
   dialogTree?: DialogNode[];
-  tracingMap?: TracingNode[];
 }
 
 export interface DialogChoice {
@@ -44,14 +42,6 @@ export interface DialogNode {
   text: string;
   choices?: DialogChoice[];
   isCorrect?: boolean;
-}
-
-export interface TracingNode {
-  id: string;
-  x: number;
-  y: number;
-  type: 'start' | 'intermediate' | 'fake' | 'end';
-  connectedTo?: string[];
 }
 
 export const SCENARIOS: Scenario[] = [
@@ -345,35 +335,6 @@ export const NEW_SCENARIOS: Scenario[] = [
     }
   },
   {
-    id: 103,
-    type: ScenarioType.TRACING,
-    sender: "Кибератака на ваш аккаунт",
-    content: "Обнаружена подозрительная активность! Кто-то пытается получить доступ к вашему аккаунту ЕРИП из неизвестной сети.",
-    isPhishing: false,
-    hint: "Выберите маршрут до реального источника атаки и не заходите в ложные ветки.",
-    explanation: "Мини-игра: нужно шаг за шагом пройти по схеме сети от точки входа до настоящего источника атаки, не попав в ловушки.",
-    briefing: "Поиск источника атаки... У вас 60 секунд!",
-    isSpecialMission: true,
-    tracingMap: [
-      { id: 'start', x: 10, y: 50, type: 'start', connectedTo: ['node1', 'node2', 'node3'] },
-      { id: 'node1', x: 30, y: 20, type: 'intermediate', connectedTo: ['node4', 'node5'] },
-      { id: 'node2', x: 30, y: 50, type: 'intermediate', connectedTo: ['node5', 'node6'] },
-      { id: 'node3', x: 30, y: 80, type: 'fake', connectedTo: ['node7'] },
-      { id: 'node4', x: 50, y: 10, type: 'fake', connectedTo: ['end_fake'] },
-      { id: 'node5', x: 50, y: 40, type: 'intermediate', connectedTo: ['node8'] },
-      { id: 'node6', x: 50, y: 70, type: 'intermediate', connectedTo: ['end_real'] },
-      { id: 'node7', x: 50, y: 90, type: 'fake', connectedTo: [] },
-      { id: 'node8', x: 70, y: 30, type: 'fake', connectedTo: ['end_fake2'] },
-      { id: 'end_real', x: 90, y: 70, type: 'end' },
-      { id: 'end_fake', x: 90, y: 10, type: 'fake' },
-      { id: 'end_fake2', x: 90, y: 30, type: 'fake' },
-    ],
-    educationalInfo: {
-      title: "Как находят источник атаки",
-      description: "Специалисты по кибербезопасности анализируют путь трафика, чтобы понять, откуда идет атака. В реальной работе для этого используют специальные сетевые инструменты.",
-    }
-  },
-  {
     id: 104,
     type: ScenarioType.SMS,
     sender: "Cryptobel",
@@ -492,36 +453,6 @@ export const NEW_SCENARIOS: Scenario[] = [
     educationalInfo: {
       title: "Нелегальные обменники",
       description: "В РБ обмен валюты через неофициальные каналы запрещён. Используйте только банки и лицензированные пункты обмена.",
-    }
-  },
-  {
-    id: 109,
-    type: ScenarioType.TRACING,
-    sender: "Атака на банковский сервер",
-    content: "Зафиксирована DDoS-атака на сервера Беларусбанка. Требуется найти источник и заблокировать канал.",
-    isPhishing: false,
-    hint: "Настоящий источник атаки скрыт за цепочкой прокси-серверов.",
-    explanation: "Мини-игра по поиску реального источника DDoS-атаки среди множества подставных узлов.",
-    briefing: "Поиск управляющего узла ботнета... У вас 45 секунд!",
-    isSpecialMission: true,
-    tracingMap: [
-      { id: 'start', x: 5, y: 50, type: 'start', connectedTo: ['n1', 'n2', 'n3', 'n4'] },
-      { id: 'n1', x: 25, y: 15, type: 'fake', connectedTo: ['n5'] },
-      { id: 'n2', x: 25, y: 35, type: 'intermediate', connectedTo: ['n5', 'n6'] },
-      { id: 'n3', x: 25, y: 65, type: 'intermediate', connectedTo: ['n6', 'n7'] },
-      { id: 'n4', x: 25, y: 85, type: 'fake', connectedTo: ['n8'] },
-      { id: 'n5', x: 45, y: 25, type: 'fake', connectedTo: ['end1'] },
-      { id: 'n6', x: 45, y: 45, type: 'intermediate', connectedTo: ['n9'] },
-      { id: 'n7', x: 45, y: 75, type: 'fake', connectedTo: ['end2'] },
-      { id: 'n8', x: 45, y: 95, type: 'fake', connectedTo: [] },
-      { id: 'n9', x: 65, y: 55, type: 'intermediate', connectedTo: ['n10'] },
-      { id: 'n10', x: 85, y: 55, type: 'end' },
-      { id: 'end1', x: 75, y: 25, type: 'fake' },
-      { id: 'end2', x: 75, y: 75, type: 'fake' },
-    ],
-    educationalInfo: {
-      title: "DDoS-атаки и ботнеты",
-      description: "DDoS-атаки часто идут через цепочку заражённых устройств. Специалисты отслеживают маршрут до управляющего сервера ботнета.",
     }
   },
 ];
