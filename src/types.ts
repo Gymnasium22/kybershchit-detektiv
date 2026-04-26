@@ -8,6 +8,16 @@ export enum ScenarioType {
   DIALOG = 'DIALOG',
 }
 
+export type GameState = 'START' | 'STORY' | 'PLAYING' | 'FEEDBACK' | 'EDUCATIONAL' | 'MINIGAME' | 'END' | 'GLOSSARY' | 'PROFILE' | 'LOADING';
+
+export type DialogMessage = {
+  id: string;
+  speaker: 'scammer' | 'system' | 'user';
+  text: string;
+  isCorrect?: boolean;
+};
+
+
 export interface Scenario {
   id: number;
   type: ScenarioType;
